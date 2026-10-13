@@ -375,7 +375,7 @@ async fn process_transcription_result<C, CFut, O, E>(
             message,
             correction_warning,
             elapsed_seconds,
-        })
+        });
     };
     match result {
         Ok(text) if text.trim().is_empty() => publish(StatusKind::Ready, None, None, None),

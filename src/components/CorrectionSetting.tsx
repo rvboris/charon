@@ -147,6 +147,9 @@ export function CorrectionSetting({
     }
     setError("");
     setSaving(true);
+    // Note: `finally` is intentionally avoided — React Compiler cannot lower
+    // Try/finally yet (BuildHIR::lowerStatement Todo). No statement below the
+    // Try/catch throws, so `setSaving(false)` runs on every path.
     try {
       await onSave(next);
       setDraft(next);
@@ -154,9 +157,8 @@ export function CorrectionSetting({
       setSaved(true);
     } catch {
       setError("Не удалось сохранить. Введённые данные сохранены в форме — попробуйте ещё раз.");
-    } finally {
-      setSaving(false);
     }
+    setSaving(false);
   };
   const { buttonLabel, announcement, enabledLabel, requiredMark } = feedback({
     configured: Boolean(settings.llmServerUrl),

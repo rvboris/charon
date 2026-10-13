@@ -801,7 +801,7 @@ mod tests {
         for kind in [StatusKind::Error, StatusKind::Recording] {
             let event =
                 publish_status_locked(&mut snapshot, &revision, status_event(kind), |event| {
-                    delivered.push(event.clone())
+                    delivered.push(event.clone());
                 });
             assert_eq!(event.revision, delivered.len() as u64);
             assert_eq!(snapshot.revision, event.revision);
@@ -849,7 +849,7 @@ mod tests {
         let status = Mutex::new(snapshot);
         let pending_hide = || {
             with_current_status_revision(&status, terminal.revision, || {
-                hidden.set(hidden.get() + 1)
+                hidden.set(hidden.get() + 1);
             });
         };
         publish_status_locked(
@@ -870,7 +870,7 @@ mod tests {
         let matching_status = Mutex::new(matching_snapshot);
         let matching_before = serde_json::to_value(&*matching_status.lock().unwrap()).unwrap();
         with_current_status_revision(&matching_status, matching_terminal.revision, || {
-            hidden.set(hidden.get() + 1)
+            hidden.set(hidden.get() + 1);
         });
         assert_eq!(hidden.get(), 1);
         assert_eq!(

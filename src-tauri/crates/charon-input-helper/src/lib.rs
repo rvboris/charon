@@ -35,7 +35,7 @@ pub fn run() -> Result<(), String> {
     let mut devices = DeviceLoop::new().map_err(|error| error.to_string())?;
     let mut state = CommandState::new(instance_id());
     let (initial, initial_events) = devices.rescan(&mut state.matcher);
-    debug_assert!(initial_events.is_empty());
+    debug_assert_eq!(initial_events, []);
     report_scan_diagnostic(&initial);
 
     loop {
