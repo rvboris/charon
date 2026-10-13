@@ -805,7 +805,10 @@ mod tests {
                 });
             assert_eq!(event.revision, delivered.len() as u64);
             assert_eq!(snapshot.revision, event.revision);
-            assert!(std::mem::discriminant(&snapshot.kind) == std::mem::discriminant(&event.kind));
+            assert_eq!(
+                std::mem::discriminant(&snapshot.kind),
+                std::mem::discriminant(&event.kind)
+            );
         }
         assert_eq!(delivered.len(), 2);
         assert!(matches!(delivered[0].kind, StatusKind::Error));

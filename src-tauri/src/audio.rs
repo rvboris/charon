@@ -562,20 +562,20 @@ mod tests {
 
     #[test]
     fn conversion_ignores_incomplete_frames_and_zero_channels() {
-        assert!(interleaved_to_mono(&[1_i16, 2], 0, f32::from).is_empty());
+        assert_eq!(interleaved_to_mono(&[1_i16, 2], 0, f32::from).len(), 0);
         assert_eq!(
             interleaved_to_mono(&[2_i16, 6, 99], 2, f32::from),
             vec![4.0]
         );
-        assert!(interleaved_to_mono(&[1_i16], 2, f32::from).is_empty());
+        assert_eq!(interleaved_to_mono(&[1_i16], 2, f32::from).len(), 0);
     }
 
     #[test]
     fn resampling_handles_degenerate_rates_and_clamps_last_frame() {
         for (source, target) in [(0, 16_000), (16_000, 0)] {
-            assert!(resample_linear(&[1.0], source, target).is_empty());
+            assert_eq!(resample_linear(&[1.0], source, target).len(), 0);
         }
-        assert!(resample_linear(&[], 1, 2).is_empty());
+        assert_eq!(resample_linear(&[], 1, 2).len(), 0);
         assert_eq!(resample_linear(&[0.25], 1, 4), vec![0.25; 4]);
         assert_eq!(resample_linear(&[0.0, 1.0], 2, 4), vec![0.0, 0.5, 1.0, 1.0]);
         assert_eq!(

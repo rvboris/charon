@@ -3,8 +3,17 @@ import type { StatusPayload } from "../../src/lib/types";
 import { deferred } from "../components/helpers";
 
 const api = vi.hoisted(() => ({ invoke: vi.fn(), listen: vi.fn() }));
+const windowApi = vi.hoisted(() => ({
+  innerSize: vi.fn(), outerPosition: vi.fn(), scaleFactor: vi.fn(),
+  setPosition: vi.fn(), setSize: vi.fn(),
+}));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: api.invoke }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: api.listen }));
+vi.mock("@tauri-apps/api/window", () => ({
+  LogicalSize: vi.fn((width: number, height: number) => ({ height, width })),
+  PhysicalPosition: vi.fn((horizontal: number, vertical: number) => ({ horizontal, vertical })),
+  getCurrentWindow: (): typeof windowApi => windowApi,
+}));
 const handlers = new Map<string, (event: { payload: unknown }) => void>();
 const frames = new Map<number, FrameRequestCallback>();
 let nextFrame = 0;
@@ -80,6 +89,11 @@ beforeEach(() => {
     },
   );
   api.invoke.mockReset().mockResolvedValue({ kind: "ready", revision: 0 });
+  windowApi.outerPosition.mockReset().mockResolvedValue({ "x": 100, "y": 40 });
+  windowApi.innerSize.mockReset().mockResolvedValue({ height: 48, width: 172 });
+  windowApi.scaleFactor.mockReset().mockResolvedValue(1);
+  windowApi.setSize.mockReset().mockReturnValue(Promise.resolve());
+  windowApi.setPosition.mockReset().mockReturnValue(Promise.resolve());
 });
 afterEach(() => {
   globalThis.dispatchEvent(new Event("pagehide"));
@@ -105,6 +119,47 @@ describe("recording entrypoint", { timeout: 15_000 }, () => {
     emit("status", { kind: "recording" });
     expect(element("recording-state")).toBeVisible();
     expect(element("processing-state")).not.toBeVisible();
+  });
+  it("widens for long errors and restores the centered native window on recording", async () => {
+    Object.defineProperty(element("error-state").parentElement, "offsetWidth", { configurable: true, get: () => 300 });
+    await import("../../src/recording");
+    await Promise.resolve();
+    await Promise.resolve();
+    emit("status", { kind: "error" });
+    await vi.waitFor(() => { expect(windowApi.setPosition).toHaveBeenCalled(); });
+    expect(element("error-label")).toHaveTextContent("Ошибка — подробности в главном окне");
+    expect(element("error-state")).toBeVisible();
+    expect(element("recording-state")).not.toBeVisible();
+    expect(windowApi.setSize).toHaveBeenCalledWith(expect.objectContaining({ height: 48, width: 304 }));
+    expect(windowApi.setPosition).toHaveBeenCalledWith(expect.objectContaining({ horizontal: 34, vertical: 40 }));
+
+    windowApi.outerPosition.mockResolvedValue({ "x": 34, "y": 40 });
+    windowApi.innerSize.mockResolvedValue({ height: 48, width: 304 });
+    emit("status", { kind: "recording" });
+    await vi.waitFor(() => { expect(windowApi.setPosition).toHaveBeenLastCalledWith(expect.objectContaining({ horizontal: 100, vertical: 40 })); });
+    expect(element("recording-state")).toBeVisible();
+    expect(document.querySelector<HTMLElement>(".recording-indicator")?.style.width).toBe("");
+    expect(windowApi.setSize).toHaveBeenLastCalledWith(expect.objectContaining({ height: 48, width: 172 }));
+  });
+  it("handles failed window measurements and resize without losing the error state", async () => {
+    windowApi.outerPosition.mockRejectedValueOnce(new Error("measurement failed"));
+    Object.defineProperty(element("error-state").parentElement, "offsetWidth", { configurable: true, get: () => 300 });
+    await import("../../src/recording");
+    await Promise.resolve();
+    await Promise.resolve();
+    emit("status", { kind: "error" });
+    expect(element("error-state")).toBeVisible();
+    expect(element("error-label")).toHaveTextContent("Ошибка — подробности в главном окне");
+    await vi.waitFor(() => { expect(windowApi.outerPosition).toHaveBeenCalled(); });
+    expect(windowApi.setSize).not.toHaveBeenCalled();
+
+    windowApi.setSize.mockRejectedValueOnce(new Error("resize failed"));
+    emit("status", { kind: "error" });
+    expect(element("error-state")).toBeVisible();
+    expect(element("error-label")).toHaveTextContent("Ошибка — подробности в главном окне");
+    await vi.waitFor(() => { expect(windowApi.setSize).toHaveBeenCalledWith(expect.objectContaining({ height: 48, width: 304 })); });
+    await Promise.resolve();
+    expect(windowApi.setPosition).not.toHaveBeenCalled();
   });
   it("registers before snapshot and accepts newer snapshot after live status", async () => {
     const registration = deferred<() => void>();
@@ -213,6 +268,13 @@ describe("recording entrypoint", { timeout: 15_000 }, () => {
     emit("status", { kind: "recording" });
     expect(frames.size).toBe(1);
     expect(vi.getTimerCount()).toBe(1);
+    emit("status", { correctionWarning: "provider unavailable", kind: "inserted" });
+    expect(element("processing-label")).toHaveTextContent("Текст вставлен · Без корректировки");
+    expect(element("processing-state")).toBeVisible();
+    expect(frames.size).toBe(0);
+    expect(vi.getTimerCount()).toBe(0);
+    emit("status", { kind: "ready" });
+    expect(element("processing-state")).not.toBeVisible();
   });
 
   it.each(["resolve", "reject"] as const)(

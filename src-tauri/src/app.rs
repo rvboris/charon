@@ -449,6 +449,9 @@ mod tests {
             panic!()
         };
         assert!(!state.resolve(id, false));
-        assert!(matches!(state.request(true), ExitAction::Ask(next) if next != id));
+        let ExitAction::Ask(next) = state.request(true) else {
+            panic!("expected another exit request")
+        };
+        assert_ne!(next, id);
     }
 }

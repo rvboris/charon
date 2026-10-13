@@ -495,7 +495,10 @@ mod transcription_result_tests {
             assert!(!*processing.lock().unwrap());
             assert_eq!(events.borrow().len(), 1);
             let event = &events.borrow()[0];
-            assert!(std::mem::discriminant(&event.kind) == std::mem::discriminant(&expected_kind));
+            assert_eq!(
+                std::mem::discriminant(&event.kind),
+                std::mem::discriminant(&expected_kind)
+            );
             assert_eq!(event.message.as_deref(), expected_detail);
             assert_eq!(event.correction_warning, None);
         }
@@ -564,7 +567,10 @@ mod transcription_result_tests {
             assert_eq!(output_text, "raw");
             assert!(!processing);
             let terminal = events.last().unwrap();
-            assert!(std::mem::discriminant(&terminal.kind) == std::mem::discriminant(&kind));
+            assert_eq!(
+                std::mem::discriminant(&terminal.kind),
+                std::mem::discriminant(&kind)
+            );
             assert_eq!(terminal.message.as_deref(), message);
             assert_eq!(
                 terminal.correction_warning.as_deref(),

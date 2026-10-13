@@ -76,8 +76,8 @@ mod tests {
         ));
         let _ = std::fs::remove_dir_all(&root);
         let setup = permission_setup_in_directory(&root).unwrap();
-        assert!(!setup.install_commands.is_empty());
-        assert!(!setup.revoke_commands.is_empty());
+        assert_ne!(setup.install_commands.len(), 0);
+        assert_ne!(setup.revoke_commands.len(), 0);
 
         let blocker = root.join("blocker");
         std::fs::write(&blocker, "not a directory").unwrap();
@@ -93,13 +93,13 @@ mod tests {
             false,
             Some("Не удалось подготовить файл правила.".into()),
         );
-        assert!(setup.install_commands.is_empty());
+        assert_eq!(setup.install_commands.len(), 0);
         assert!(setup.prepared_rule_path.is_none());
-        assert!(!setup.disclosure.is_empty());
+        assert_ne!(setup.disclosure.len(), 0);
         assert_eq!(setup.revoke_commands.len(), 3);
         let value = serde_json::to_value(setup).unwrap();
         assert_eq!(value["setupError"], "Не удалось подготовить файл правила.");
-        assert!(value["installCommands"].as_array().unwrap().is_empty());
+        assert_eq!(value["installCommands"].as_array().unwrap().len(), 0);
         assert!(value["preparedRulePath"].is_null());
     }
 
