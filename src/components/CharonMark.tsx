@@ -1,16 +1,16 @@
 import type { JSX } from "react";
 
-export function SlovoMark(): JSX.Element | null {
+export function CharonMark(): JSX.Element | null {
   return (
     <svg
       viewBox="0 0 24 24"
-      className="slovo-mark relative z-10 h-5 w-5"
+      className="charon-mark relative z-10 h-5 w-5"
       fill="none"
       aria-hidden="true"
       focusable="false"
     >
       <rect
-        className="slovo-bar slovo-bar-1"
+        className="charon-bar charon-bar-1"
         x="3"
         y="7"
         width="2.6"
@@ -19,7 +19,7 @@ export function SlovoMark(): JSX.Element | null {
         fill="var(--accent-vivid)"
       />
       <rect
-        className="slovo-bar slovo-bar-2"
+        className="charon-bar charon-bar-2"
         x="7"
         y="4"
         width="2.6"
@@ -28,7 +28,7 @@ export function SlovoMark(): JSX.Element | null {
         fill="var(--accent-vivid)"
       />
       <rect
-        className="slovo-bar slovo-bar-3"
+        className="charon-bar charon-bar-3"
         x="11"
         y="2.5"
         width="2.6"
@@ -37,7 +37,7 @@ export function SlovoMark(): JSX.Element | null {
         fill="var(--accent-vivid)"
       />
       <rect
-        className="slovo-bar slovo-bar-4"
+        className="charon-bar charon-bar-4"
         x="15"
         y="4"
         width="2.6"
@@ -46,7 +46,7 @@ export function SlovoMark(): JSX.Element | null {
         fill="var(--accent-vivid)"
       />
       <rect
-        className="slovo-bar slovo-bar-5"
+        className="charon-bar charon-bar-5"
         x="19"
         y="7"
         width="2.6"

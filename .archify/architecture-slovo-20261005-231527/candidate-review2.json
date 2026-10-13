@@ -2,9 +2,9 @@
   "schema_version": 1,
   "diagram_type": "architecture",
   "meta": {
-    "title": "Slovo — Push-to-Talk Voice Transcription",
+    "title": "Charon — Push-to-Talk Voice Transcription",
     "subtitle": "Tauri 2 desktop app: global hotkey → record → transcribe → type into the active window (Linux, Wayland/X11)",
-    "output": ".archify/architecture-slovo-20261005-231527/slovo.html",
+    "output": ".archify/architecture-charon-20261005-231527/charon.html",
     "quality_profile": "showcase"
   },
   "components": [
@@ -25,7 +25,7 @@
     {
       "id": "helper",
       "type": "external",
-      "label": "slovo-input-helper",
+      "label": "charon-input-helper",
       "sublabel": "evdev sidecar · udev rule",
       "pos": [
         40,
@@ -224,7 +224,7 @@
   "boundaries": [
     {
       "kind": "region",
-      "label": "Slovo Desktop App — Tauri 2 (WebView + Rust)",
+      "label": "Charon Desktop App — Tauri 2 (WebView + Rust)",
       "wraps": [
         "main-ui",
         "overlay",

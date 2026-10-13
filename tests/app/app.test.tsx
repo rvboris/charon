@@ -42,7 +42,7 @@ function emit(name: string, payload: object): void {
   if (name === "status") {
     value = { revision: statusRevision, ...payload };
   }
-  listeners.get(`slovo://${name}`)?.({ payload: value });
+  listeners.get(`charon://${name}`)?.({ payload: value });
 }
 beforeEach(() => {
   vi.clearAllMocks();
@@ -194,7 +194,7 @@ describe("App and AppView integration", () => {
     await user.click(screen.getByRole("button", { name: "Настроить" }));
     expect(await screen.findByRole("button", { name: "Отмена" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Включить тёмную тему" }));
-    expect(api.emit).toHaveBeenCalledWith("slovo://theme-changed", "dark");
+    expect(api.emit).toHaveBeenCalledWith("charon://theme-changed", "dark");
     view.unmount();
     expect(disposers.length).toBeGreaterThan(0);
     for (const dispose of disposers) {

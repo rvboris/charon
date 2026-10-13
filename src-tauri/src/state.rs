@@ -278,8 +278,8 @@ pub(crate) fn emit_status_event(app: &AppHandle, event: StatusEvent) {
     let published = {
         let Ok(mut current) = state.status.lock() else { return; };
         publish_status_locked(&mut current, &state.status_revision, event, |published| {
-            if let Err(error) = app.emit("slovo://status", published.clone()) {
-                eprintln!("[slovo] cannot emit status event: {error}");
+            if let Err(error) = app.emit("charon://status", published.clone()) {
+                eprintln!("[charon] cannot emit status event: {error}");
             }
         })
     };
@@ -320,7 +320,7 @@ fn queue_status_window_action(app: &AppHandle, event: StatusEvent, revision: u64
             queue_overlay_hide(app.clone(), revision);
         }
     }).is_err() {
-        eprintln!("[slovo] could not queue status presentation");
+        eprintln!("[charon] could not queue status presentation");
     }
 }
 
@@ -334,12 +334,12 @@ fn queue_overlay_hide(app: AppHandle, revision: u64) {
             with_current_status_revision(&state.status, revision, || {
                 if let Some(window) = app.get_webview_window("recording-overlay") {
                     if let Err(error) = hide_recording_overlay(&window) {
-                        eprintln!("[slovo] recording overlay error: {error}");
+                        eprintln!("[charon] recording overlay error: {error}");
                     }
                 }
             });
         }).is_err() {
-            eprintln!("[slovo] could not queue overlay hide");
+            eprintln!("[charon] could not queue overlay hide");
         }
     });
 }
@@ -363,7 +363,7 @@ fn manage_recording_overlay(app: &AppHandle, event: &StatusEvent) {
             .map_or(Ok(()), |window| hide_recording_overlay(&window))
     };
     if let Err(error) = result {
-        eprintln!("[slovo] recording overlay error: {error}");
+        eprintln!("[charon] recording overlay error: {error}");
     }
 }
 
@@ -729,7 +729,7 @@ pub(crate) fn set_shortcut_status(app: &AppHandle, status: ShortcutBackendStatus
         shortcut.status = status.clone();
         shortcut.status_revision = shortcut.status_revision.wrapping_add(1);
     }
-    let _ = app.emit("slovo://shortcut-status", status);
+    let _ = app.emit("charon://shortcut-status", status);
 }
 
 #[cfg(test)]

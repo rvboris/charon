@@ -1,4 +1,4 @@
-//! Slovo — Linux-first push-to-talk transcription.
+//! Charon — Linux-first push-to-talk transcription.
 //!
 //! The crate is organised into focused modules so each file has a single
 //! responsibility:
@@ -44,13 +44,13 @@ mod tests {
     fn permission_rule_content_and_commands_are_exact_and_safe() {
         assert_eq!(
             SHORTCUT_RULE,
-            "# Slovo Wayland global hotkeys. SECURITY: grants the active graphical user\n# read access to complete keyboard event streams; every process of that user\n# can then read all keystrokes. Slovo filters locally to the configured chord.\nACTION==\"remove\", GOTO=\"slovo_input_end\"\nSUBSYSTEM==\"input\", KERNEL==\"event[0-9]*\", ENV{ID_INPUT_KEYBOARD}==\"1\", TAG+=\"uaccess\"\nLABEL=\"slovo_input_end\"\n"
+            "# Charon Wayland global hotkeys. SECURITY: grants the active graphical user\n# read access to complete keyboard event streams; every process of that user\n# can then read all keystrokes. Charon filters locally to the configured chord.\nACTION==\"remove\", GOTO=\"charon_input_end\"\nSUBSYSTEM==\"input\", KERNEL==\"event[0-9]*\", ENV{ID_INPUT_KEYBOARD}==\"1\", TAG+=\"uaccess\"\nLABEL=\"charon_input_end\"\n"
         );
         let path = Path::new("/home/Test User/it's/rule file");
         let setup = permission_setup_for_path(Some(path), false, None);
         assert_eq!(
             setup.install_commands[0],
-            "sudo install -m 0644 '/home/Test User/it'\\''s/rule file' '/usr/lib/udev/rules.d/72-slovo-input-helper.rules'"
+            "sudo install -m 0644 '/home/Test User/it'\\''s/rule file' '/usr/lib/udev/rules.d/72-charon-input-helper.rules'"
         );
         assert_eq!(
             setup.install_commands[1],
@@ -62,7 +62,7 @@ mod tests {
         );
         assert_eq!(
             setup.revoke_commands[0],
-            "sudo rm -f '/usr/lib/udev/rules.d/72-slovo-input-helper.rules'"
+            "sudo rm -f '/usr/lib/udev/rules.d/72-charon-input-helper.rules'"
         );
     }
 
@@ -71,7 +71,7 @@ mod tests {
     fn permission_setup_success_has_non_empty_commands_and_failure_is_surfaced() {
         use crate::permissions::permission_setup_in_directory;
         let root = std::env::temp_dir().join(format!(
-            "slovo-permission-setup-test-{}",
+            "charon-permission-setup-test-{}",
             std::process::id()
         ));
         let _ = std::fs::remove_dir_all(&root);
@@ -106,14 +106,14 @@ mod tests {
     #[test]
     fn permission_setup_dir_fallback_uses_xdg_config_home_when_set() {
         // Force XDG_CONFIG_HOME to a known temp location and verify the manual
-        // fallback joins it with com.slovo.app, matching Tauri's app_config_dir.
-        let temp = std::env::temp_dir().join(format!("slovo-xdg-test-{}", std::process::id()));
+        // fallback joins it with com.charon.app, matching Tauri's app_config_dir.
+        let temp = std::env::temp_dir().join(format!("charon-xdg-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&temp);
         std::fs::create_dir_all(&temp).unwrap();
         let previous_xdg = std::env::var_os("XDG_CONFIG_HOME");
         std::env::set_var("XDG_CONFIG_HOME", &temp);
         let dir = permission_setup_dir_from_env_only().unwrap();
-        assert_eq!(dir, temp.join("com.slovo.app"));
+        assert_eq!(dir, temp.join("com.charon.app"));
         if let Some(value) = previous_xdg {
             std::env::set_var("XDG_CONFIG_HOME", value);
         } else {
@@ -125,7 +125,7 @@ mod tests {
     #[test]
     fn permission_diagnostics_flush_to_stderr_without_panicking() {
         // Confirms log_permission_setup_message reaches the stream as a flushed
-        // `[slovo]` line and exercises both ok and err path formatters.
+        // `[charon]` line and exercises both ok and err path formatters.
         log_permission_setup_message("diagnostic probe 1");
         log_permission_setup_dir(&Ok(PathBuf::from("/probe/path")));
         log_permission_setup_dir(&Err("probe failure".to_owned()));
@@ -134,7 +134,7 @@ mod tests {
     #[test]
     fn installed_rule_requires_exact_content() {
         let directory = std::env::temp_dir().join(format!(
-            "slovo-rule-test-{}-{}",
+            "charon-rule-test-{}-{}",
             std::process::id(),
             // Windows forbids ':' in file names; thread names contain "::".
             std::thread::current()
@@ -157,7 +157,7 @@ mod tests {
     fn prepared_rule_is_atomic_content_with_0644_mode() {
         use std::os::unix::fs::PermissionsExt;
         let directory =
-            std::env::temp_dir().join(format!("slovo-prepare-rule-test-{}", std::process::id()));
+            std::env::temp_dir().join(format!("charon-prepare-rule-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&directory);
         let path = prepare_shortcut_rule(&directory).unwrap();
         assert_eq!(std::fs::read_to_string(&path).unwrap(), SHORTCUT_RULE);

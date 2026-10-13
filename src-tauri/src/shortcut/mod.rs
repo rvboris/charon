@@ -3,7 +3,7 @@ mod native;
 mod wayland;
 
 pub use native::NativeShortcutBackend;
-pub use slovo_shortcut_core::chord::{ShortcutChord, ShortcutError};
+pub use charon_shortcut_core::chord::{ShortcutChord, ShortcutError};
 
 /// Shortcut implementation selected by the runtime environment.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]

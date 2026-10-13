@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/slovo-shortcut-core", "crates/slovo-input-helper"]
+members = ["crates/charon-shortcut-core", "crates/charon-input-helper"]
 resolver = "2"
 
 [workspace.lints.clippy]
@@ -15,15 +15,15 @@ redundant_pub_crate = "allow"
 unreachable_pub = "allow"
 
 [package]
-name = "homeborismygitslovo"
+name = "homeborismygitcharon"
 version = "0.8.0"
 description = "Linux-first push-to-talk transcription"
-authors = ["Slovo contributors"]
+authors = ["Charon contributors"]
 edition = "2021"
-default-run = "homeborismygitslovo"
+default-run = "homeborismygitcharon"
 
 [lib]
-name = "homeborismygitslovo_lib"
+name = "homeborismygitcharon_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [lints]
@@ -41,7 +41,7 @@ num-traits = "0.2"
 reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "rustls-tls"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-slovo-shortcut-core = { path = "crates/slovo-shortcut-core" }
+charon-shortcut-core = { path = "crates/charon-shortcut-core" }
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-global-shortcut = "2"
 tauri-plugin-single-instance = "2"

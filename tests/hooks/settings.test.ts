@@ -187,7 +187,7 @@ describe("settings", () => {
       await retry();
     });
     expect(result.current.isLoaded).toBe(true);
-    bus.send("slovo://settings-changed", null);
+    bus.send("charon://settings-changed", null);
     await flush();
     expect(ipc).toHaveBeenCalledTimes(3);
     unmount();

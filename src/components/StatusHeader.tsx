@@ -1,7 +1,7 @@
 import { Minus, Moon, Sun, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { JSX } from "react";
-import { SlovoMark } from "./SlovoMark";
+import { CharonMark } from "./CharonMark";
 import type { StatusKind } from "@/lib/types";
 import type { Theme } from "@/hooks/useTheme";
 import { cn } from "@/lib/utils";
@@ -55,11 +55,11 @@ export function StatusHeader({
     <header className="titlebar flex h-10 shrink-0 items-center border-b border-border/80 bg-background/95 pl-6 backdrop-blur-md">
       <div data-tauri-drag-region className="flex h-full min-w-0 flex-1 items-center gap-3">
         <div className="relative isolate flex shrink-0 items-center gap-2">
-          <div className="slovo-bloom" aria-hidden="true" />
-          <div className="slovo-chip flex h-7 w-7 items-center justify-center">
-            <SlovoMark />
+          <div className="charon-bloom" aria-hidden="true" />
+          <div className="charon-chip flex h-7 w-7 items-center justify-center">
+            <CharonMark />
           </div>
-          <span className="text-sm font-semibold tracking-[-0.02em]">Слово</span>
+          <span className="text-sm font-semibold tracking-[-0.02em]">Харон</span>
         </div>
       </div>
 

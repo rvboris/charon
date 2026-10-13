@@ -12,7 +12,7 @@ use tauri::{AppHandle, Emitter, Manager};
 
 use super::{BackendKind, ShortcutBackendStatus, ShortcutChord, ShortcutError};
 use crate::{handle_hotkey_action, HotkeyEvent};
-use slovo_shortcut_core::protocol::{
+use charon_shortcut_core::protocol::{
     decode_helper_line, encode_parent_line, read_bounded_line, EventState, HelperMessage,
     ParentCommand, PROTOCOL_VERSION,
 };
@@ -142,7 +142,7 @@ fn spawn_protocol_reader(
     identity: u64,
 ) -> Result<(), ShortcutError> {
     thread::Builder::new()
-        .name("slovo-helper-protocol".into())
+        .name("charon-helper-protocol".into())
         .spawn(move || {
             let mut reader = BufReader::new(output);
             loop {
@@ -229,10 +229,10 @@ fn spawn_protocol_reader(
 
 fn spawn_stderr_reader(stderr: std::process::ChildStderr) -> Result<(), ShortcutError> {
     thread::Builder::new()
-        .name("slovo-helper-stderr".into())
+        .name("charon-helper-stderr".into())
         .spawn(move || {
             for line in BufReader::new(stderr).lines().map_while(Result::ok) {
-                eprintln!("[slovo-input-helper] {line}");
+                eprintln!("[charon-input-helper] {line}");
             }
         })
         .map(|_| ())
@@ -544,12 +544,12 @@ impl Drop for WaylandSupervisor {
 }
 
 fn evdev_debug_enabled() -> bool {
-    env::var_os("SLOVO_EVDEV_DEBUG").is_some_and(|value| value == "1")
+    env::var_os("CHARON_EVDEV_DEBUG").is_some_and(|value| value == "1")
 }
 
 fn log_wayland(message: &str) {
     use std::io::Write;
-    let _ = writeln!(std::io::stderr(), "[slovo] wayland supervisor: {message}");
+    let _ = writeln!(std::io::stderr(), "[charon] wayland supervisor: {message}");
     let _ = std::io::stderr().flush();
 }
 
@@ -586,7 +586,7 @@ fn set_shared_status(
             shortcut.status_revision = shortcut.status_revision.wrapping_add(1);
         }
     }
-    let _ = app.emit("slovo://shortcut-status", status);
+    let _ = app.emit("charon://shortcut-status", status);
 }
 
 fn zero_device_status() -> ShortcutBackendStatus {
@@ -624,25 +624,25 @@ fn synthesize_release(app: &AppHandle, filter: &Arc<Mutex<EventFilter>>) {
 }
 
 pub fn resolve_helper_path() -> Result<PathBuf, String> {
-    if let Some(path) = env::var_os("SLOVO_INPUT_HELPER") {
+    if let Some(path) = env::var_os("CHARON_INPUT_HELPER") {
         let path = PathBuf::from(path);
-        return validate_helper(path, "SLOVO_INPUT_HELPER");
+        return validate_helper(path, "CHARON_INPUT_HELPER");
     }
     let current =
         env::current_exe().map_err(|error| format!("cannot locate current executable: {error}"))?;
     let mut candidates = Vec::new();
     if let Some(parent) = current.parent() {
-        candidates.push(parent.join("slovo-input-helper"));
+        candidates.push(parent.join("charon-input-helper"));
         if parent.file_name().is_some_and(|name| name == "deps") {
             if let Some(debug) = parent.parent() {
-                candidates.push(debug.join("slovo-input-helper"));
+                candidates.push(debug.join("charon-input-helper"));
             }
         }
     }
     if let Some(path) = candidates.into_iter().find(|path| path.is_file()) {
         return Ok(path);
     }
-    Err("slovo-input-helper was not found; build it or set SLOVO_INPUT_HELPER to its executable path".into())
+    Err("charon-input-helper was not found; build it or set CHARON_INPUT_HELPER to its executable path".into())
 }
 
 fn validate_helper(path: PathBuf, source: &str) -> Result<PathBuf, String> {
@@ -662,7 +662,7 @@ mod tests {
     use std::io::Cursor;
     use std::sync::mpsc::RecvTimeoutError;
 
-    use slovo_shortcut_core::protocol::{
+    use charon_shortcut_core::protocol::{
         decode_parent_line, encode_helper_line, HelperMessage, ParentCommand, MAX_LINE_BYTES,
     };
 
@@ -948,7 +948,7 @@ mod tests {
     #[test]
     fn explicit_missing_helper_is_actionable() {
         let error = validate_helper(
-            PathBuf::from("/definitely/missing/slovo-input-helper"),
+            PathBuf::from("/definitely/missing/charon-input-helper"),
             "test",
         )
         .unwrap_err();

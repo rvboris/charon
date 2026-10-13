@@ -260,7 +260,7 @@ mod tests {
     fn saving_replaces_temp_symlink_without_touching_target() {
         use std::os::unix::fs::{symlink, PermissionsExt};
         let directory =
-            std::env::temp_dir().join(format!("slovo-symlink-test-{}", std::process::id()));
+            std::env::temp_dir().join(format!("charon-symlink-test-{}", std::process::id()));
         fs::create_dir_all(&directory).unwrap();
         let path = directory.join("settings.json");
         let victim = directory.join("victim");
@@ -337,7 +337,7 @@ mod tests {
     #[test]
     fn settings_round_trip_on_disk() {
         let directory = std::env::temp_dir().join(format!(
-            "slovo-settings-test-{}-{}",
+            "charon-settings-test-{}-{}",
             std::process::id(),
             // Windows forbids ':' in file names; thread names contain "::".
             std::thread::current()

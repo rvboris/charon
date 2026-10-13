@@ -22,7 +22,7 @@ interface RegistrationOptions {
 }
 
 async function listenForChanges(options: Readonly<RegistrationOptions>): Promise<void> {
-  const unlisten = await listen("slovo://settings-changed", () => {
+  const unlisten = await listen("charon://settings-changed", () => {
     void options.load();
   });
   if (options.cancelled()) {
@@ -33,7 +33,7 @@ async function listenForChanges(options: Readonly<RegistrationOptions>): Promise
 }
 
 async function listenForExit(options: Readonly<RegistrationOptions>): Promise<void> {
-  const unlisten = await listen<number>("slovo://exit-requested", (event) => {
+  const unlisten = await listen<number>("charon://exit-requested", (event) => {
     options.applyExitRequest(event.payload);
   });
   if (options.cancelled()) {

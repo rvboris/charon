@@ -306,7 +306,7 @@ function useSettingsEvents(
     let unlisten: (() => void) | null = null;
     async function subscribe(): Promise<void> {
       try {
-        const dispose = await listen("slovo://settings-changed", (): void => {
+        const dispose = await listen("charon://settings-changed", (): void => {
           if (!cancelled) {
             void loadSettings();
           }

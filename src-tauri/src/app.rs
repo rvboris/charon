@@ -31,7 +31,7 @@ impl ExitGate {
     pub(crate) fn pending_id(&self) -> Option<u64> {
         self.state
             .lock()
-            .expect("slovo exit gate lock poisoned")
+            .expect("charon exit gate lock poisoned")
             .pending_id
     }
 }
@@ -98,7 +98,7 @@ pub(crate) fn request_exit(app: &AppHandle) {
         let mut state = gate
             .state
             .lock()
-            .expect("slovo exit gate lock poisoned");
+            .expect("charon exit gate lock poisoned");
         state.request(window.is_some())
     };
     match action {
@@ -109,8 +109,8 @@ pub(crate) fn request_exit(app: &AppHandle) {
                 let _ = window.set_focus();
             }
             if window.is_some() {
-                if let Err(error) = app.emit_to("main", "slovo://exit-requested", request_id) {
-                    eprintln!("[slovo] cannot notify main window about exit: {error}");
+                if let Err(error) = app.emit_to("main", "charon://exit-requested", request_id) {
+                    eprintln!("[charon] cannot notify main window about exit: {error}");
                 }
             }
         }
@@ -124,7 +124,7 @@ pub(crate) fn exit_approved(app: &AppHandle) -> bool {
     app.try_state::<ExitGate>().is_none_or(|gate| {
         gate.state
             .lock()
-            .expect("slovo exit gate lock poisoned")
+            .expect("charon exit gate lock poisoned")
             .approved
     })
 }
@@ -153,7 +153,7 @@ pub(crate) fn resolve_exit(
         let mut state = gate
             .state
             .lock()
-            .expect("slovo exit gate lock poisoned");
+            .expect("charon exit gate lock poisoned");
         state.resolve(request_id, approve)
     };
     if exit_now {
@@ -245,7 +245,7 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         let app_for_shortcut = app.handle().clone();
         let hotkey = registered_hotkey;
         let spawn_result = std::thread::Builder::new()
-            .name("slovo-wayland-shortcut-init".into())
+            .name("charon-wayland-shortcut-init".into())
             .spawn(move || {
                 let state = app_for_shortcut.state::<AppState>();
                 let result = initialize_shortcut_manager(
@@ -274,7 +274,7 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                     );
                     set_shortcut_status(&app_for_shortcut, status);
                     if let Err(error) = result {
-                        eprintln!("[slovo] Wayland shortcut initialization failed: {error}");
+                        eprintln!("[charon] Wayland shortcut initialization failed: {error}");
                     }
                 }
             });
@@ -284,20 +284,20 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 detail: format!("cannot start Wayland shortcut initialization: {error}"),
             };
             set_shortcut_status(app.handle(), status);
-            eprintln!("[slovo] cannot start Wayland shortcut initialization: {error}");
+            eprintln!("[charon] cannot start Wayland shortcut initialization: {error}");
         }
     }
 
     if session == LinuxSession::Wayland {
-        eprintln!("[slovo] session: wayland; initializing shortcut helper");
+        eprintln!("[charon] session: wayland; initializing shortcut helper");
     } else {
-        eprintln!("[slovo] session: native global shortcut");
+        eprintln!("[charon] session: native global shortcut");
     }
 
     Ok(())
 }
 
-/// Starts Slovo and runs its Tauri event loop.
+/// Starts Charon and runs its Tauri event loop.
 ///
 /// # Panics
 ///
@@ -331,7 +331,7 @@ pub fn run() {
             crate::commands::check_server_url
         ])
         .build(tauri::generate_context!())
-        .expect("error while building Slovo")
+        .expect("error while building Charon")
         .run(|app, event| {
             let mut exiting = false;
             match &event {
@@ -340,7 +340,7 @@ pub fn run() {
                     event: tauri::WindowEvent::CloseRequested { api, .. },
                     ..
                 } if label == "main" => {
-                    // Closing main means quitting Slovo; route through the
+                    // Closing main means quitting Charon; route through the
                     // exit gate so an unsaved correction draft is kept.
                     api.prevent_close();
                     request_exit(app);
@@ -369,7 +369,7 @@ pub fn run() {
                     set_shortcut_status(app, ShortcutBackendStatus::ShuttingDown);
                     let app_for_shutdown = app.clone();
                     if let Err(error) = std::thread::Builder::new()
-                        .name("slovo-shortcut-shutdown".into())
+                        .name("charon-shortcut-shutdown".into())
                         .spawn(move || {
                             let state = app_for_shutdown.state::<AppState>();
                             if let Err(error) = shutdown_shortcut_manager(&state, |manager| {
@@ -377,11 +377,11 @@ pub fn run() {
                                     .shutdown(&app_for_shutdown)
                                     .map_err(|error| error.to_string())
                             }) {
-                                eprintln!("[slovo] shortcut shutdown failed: {error}");
+                                eprintln!("[charon] shortcut shutdown failed: {error}");
                             }
                         })
                     {
-                        eprintln!("[slovo] cannot start shortcut shutdown: {error}");
+                        eprintln!("[charon] cannot start shortcut shutdown: {error}");
                     }
                 }
             }

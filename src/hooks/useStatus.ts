@@ -51,7 +51,7 @@ function useStatusEvents(
     };
     async function subscribe(): Promise<void> {
       try {
-        const dispose = await listen<StatusPayload>("slovo://status", ({ payload }) => {
+        const dispose = await listen<StatusPayload>("charon://status", ({ payload }) => {
           apply(payload);
         });
         if (lifecycle.cancelled) {

@@ -12,10 +12,10 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager};
 
-pub(crate) const SHORTCUT_RULE_NAME: &str = "72-slovo-input-helper.rules";
+pub(crate) const SHORTCUT_RULE_NAME: &str = "72-charon-input-helper.rules";
 pub(crate) const SHORTCUT_RULE_DESTINATION: &str =
-    "/usr/lib/udev/rules.d/72-slovo-input-helper.rules";
-pub(crate) const SHORTCUT_RULE: &str = include_str!("../resources/72-slovo-input-helper.rules");
+    "/usr/lib/udev/rules.d/72-charon-input-helper.rules";
+pub(crate) const SHORTCUT_RULE: &str = include_str!("../resources/72-charon-input-helper.rules");
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -86,7 +86,7 @@ pub(crate) fn permission_setup_for_path(
     }
     ShortcutPermissionSetup {
         supported: cfg!(target_os = "linux"),
-        disclosure: "Правило предоставляет активному графическому пользователю доступ к полным потокам событий клавиатуры: любой процесс этого пользователя сможет читать все нажатия. Помощник Slovo передаёт приложению только события Pressed/Released настроенного сочетания, но не является границей безопасности от других процессов того же пользователя.".into(),
+        disclosure: "Правило предоставляет активному графическому пользователю доступ к полным потокам событий клавиатуры: любой процесс этого пользователя сможет читать все нажатия. Помощник Charon передаёт приложению только события Pressed/Released настроенного сочетания, но не является границей безопасности от других процессов того же пользователя.".into(),
         install_commands,
         revoke_commands: vec![
             format!("sudo rm -f {}", shell_quote(SHORTCUT_RULE_DESTINATION)),
@@ -97,7 +97,7 @@ pub(crate) fn permission_setup_for_path(
         installed,
         prepared_rule_path,
         setup_error,
-        note: "Команды выполняются только пользователем вручную. После установки или удаления может потребоваться переподключить клавиатуру или повторно войти в сеанс. Slovo не удаляет ACL других программ.".into(),
+        note: "Команды выполняются только пользователем вручную. После установки или удаления может потребоваться переподключить клавиатуру или повторно войти в сеанс. Charon не удаляет ACL других программ.".into(),
     }
 }
 
@@ -121,10 +121,10 @@ pub(crate) fn permission_setup_in_directory(
 /// Resolves a stable, user-writable directory for the prepared udev rule.
 ///
 /// Tauri's `app_config_dir()` is the canonical home on most systems
-/// (`$XDG_CONFIG_HOME/com.slovo.app` or `~/.config/com.slovo.app`), but in some
+/// (`$XDG_CONFIG_HOME/com.charon.app` or `~/.config/com.charon.app`), but in some
 /// dev/embedded configurations it returns `Err`. As a no-new-dependency fallback
 /// we honor `XDG_CONFIG_HOME` / `HOME` manually and join the Tauri identifier,
-/// matching the same `com.slovo.app` path the app uses elsewhere.
+/// matching the same `com.charon.app` path the app uses elsewhere.
 pub(crate) fn resolve_permission_setup_dir(app: &AppHandle) -> Result<PathBuf, String> {
     if let Ok(directory) = app.path().app_config_dir() {
         return Ok(directory);
@@ -133,7 +133,7 @@ pub(crate) fn resolve_permission_setup_dir(app: &AppHandle) -> Result<PathBuf, S
 }
 
 /// No-new-dependency fallback honored when Tauri cannot resolve the config dir.
-/// Resolves `$XDG_CONFIG_HOME/com.slovo.app` or `$HOME/.config/com.slovo.app`,
+/// Resolves `$XDG_CONFIG_HOME/com.charon.app` or `$HOME/.config/com.charon.app`,
 /// matching `dirs::config_dir()` semantics joined with the Tauri identifier.
 pub(crate) fn permission_setup_dir_from_env_only() -> Result<PathBuf, String> {
     let config_dir = std::env::var_os("XDG_CONFIG_HOME")
@@ -146,14 +146,14 @@ pub(crate) fn permission_setup_dir_from_env_only() -> Result<PathBuf, String> {
                 .map(|home| home.join(".config"))
         })
         .ok_or_else(|| "neither XDG_CONFIG_HOME nor HOME is set".to_owned())?;
-    Ok(config_dir.join("com.slovo.app"))
+    Ok(config_dir.join("com.charon.app"))
 }
 
 /// Emits a diagnostic line that survives both interactive and piped stderr by
-/// flushing explicitly. Uses `[slovo]` so it can be grepped from the run log.
+/// flushing explicitly. Uses `[charon]` so it can be grepped from the run log.
 pub(crate) fn log_permission_setup_message(message: &str) {
     use std::io::Write;
-    let _ = writeln!(std::io::stderr(), "[slovo] {message}");
+    let _ = writeln!(std::io::stderr(), "[charon] {message}");
     let _ = std::io::stderr().flush();
 }
 

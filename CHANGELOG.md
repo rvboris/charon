@@ -1,76 +1,76 @@
 # Changelog
 
-## [0.8.0](https://github.com/rvboris/slovo/compare/slovo-v0.7.0...slovo-v0.8.0) (2026-10-10)
+## [0.8.0](https://github.com/rvboris/charon/compare/charon-v0.7.0...charon-v0.8.0) (2026-10-10)
 
 
 ### Miscellaneous Chores
 
-* migrate to biome formatter alongside oxlint, reformat sources ([e24101f](https://github.com/rvboris/slovo/commit/e24101fdbaab9728587d69e9078129b33ae2e11c))
+* migrate to biome formatter alongside oxlint, reformat sources ([e24101f](https://github.com/rvboris/charon/commit/e24101fdbaab9728587d69e9078129b33ae2e11c))
 
-## [0.7.0](https://github.com/rvboris/slovo/compare/slovo-v0.6.0...slovo-v0.7.0) (2026-10-09)
-
-
-### Features
-
-* inline correction settings and polished main window ([d27bd3b](https://github.com/rvboris/slovo/commit/d27bd3b2dffe5a850f2a59348677b8da755e20d8))
-* inline correction settings and polished main window ([cacc596](https://github.com/rvboris/slovo/commit/cacc596d000f3160841a2fae62c016a6cb15fe16))
-
-## [0.6.0](https://github.com/rvboris/slovo/compare/slovo-v0.5.0...slovo-v0.6.0) (2026-08-30)
+## [0.7.0](https://github.com/rvboris/charon/compare/charon-v0.6.0...charon-v0.7.0) (2026-10-09)
 
 
 ### Features
 
-* add custom window chrome ([0b9e212](https://github.com/rvboris/slovo/commit/0b9e21207e16cfb41b07467e535e1e9797287681))
+* inline correction settings and polished main window ([d27bd3b](https://github.com/rvboris/charon/commit/d27bd3b2dffe5a850f2a59348677b8da755e20d8))
+* inline correction settings and polished main window ([cacc596](https://github.com/rvboris/charon/commit/cacc596d000f3160841a2fae62c016a6cb15fe16))
+
+## [0.6.0](https://github.com/rvboris/charon/compare/charon-v0.5.0...charon-v0.6.0) (2026-08-30)
+
+
+### Features
+
+* add custom window chrome ([0b9e212](https://github.com/rvboris/charon/commit/0b9e21207e16cfb41b07467e535e1e9797287681))
 
 
 ### Bug Fixes
 
-* enforce Rust quality checks ([d24acc5](https://github.com/rvboris/slovo/commit/d24acc5c53f17b41b8af3209c089f9418e009bdf))
+* enforce Rust quality checks ([d24acc5](https://github.com/rvboris/charon/commit/d24acc5c53f17b41b8af3209c089f9418e009bdf))
 
-## [0.5.0](https://github.com/rvboris/slovo/compare/slovo-v0.4.1...slovo-v0.5.0) (2026-08-22)
+## [0.5.0](https://github.com/rvboris/charon/compare/charon-v0.4.1...charon-v0.5.0) (2026-08-22)
 
 
 ### Features
 
-* **windows:** full Windows support ([f0fba69](https://github.com/rvboris/slovo/commit/f0fba6988b9dc127ea7de2c683d138a07412b140))
-* **windows:** full Windows support for build, hotkeys, and output ([acbf879](https://github.com/rvboris/slovo/commit/acbf879b802f431d15564320fcf363e0bb1b6da1))
+* **windows:** full Windows support ([f0fba69](https://github.com/rvboris/charon/commit/f0fba6988b9dc127ea7de2c683d138a07412b140))
+* **windows:** full Windows support for build, hotkeys, and output ([acbf879](https://github.com/rvboris/charon/commit/acbf879b802f431d15564320fcf363e0bb1b6da1))
 
 
 ### Bug Fixes
 
-* **windows:** remove the recording overlay window shadow ([24fa5c3](https://github.com/rvboris/slovo/commit/24fa5c320b043af375f83fc2ce2dcdff7a21a024))
+* **windows:** remove the recording overlay window shadow ([24fa5c3](https://github.com/rvboris/charon/commit/24fa5c320b043af375f83fc2ce2dcdff7a21a024))
 
-## [0.4.1](https://github.com/rvboris/slovo/compare/slovo-v0.4.0...slovo-v0.4.1) (2026-08-13)
-
-
-### Bug Fixes
-
-* simplify logo glow and window title ([8a17951](https://github.com/rvboris/slovo/commit/8a17951002866c24f61c38e9b071b552d7fd0c9a))
-
-## [0.4.0](https://github.com/rvboris/slovo/compare/slovo-v0.3.0...slovo-v0.4.0) (2026-08-13)
-
-
-### Features
-
-* update application icon ([b71cdf7](https://github.com/rvboris/slovo/commit/b71cdf70c454c875d154a197126bf219bd8141d2))
-
-## [0.3.0](https://github.com/rvboris/slovo/compare/slovo-v0.2.0...slovo-v0.3.0) (2026-08-13)
-
-
-### Features
-
-* redesign UI — liquid-glass logo, canvas waveform overlay, theme toggle ([c8d2619](https://github.com/rvboris/slovo/commit/c8d26193cac5a3d2453be724efb712392a3a0de1))
-
-## [0.2.0](https://github.com/rvboris/slovo/compare/slovo-v0.1.0...slovo-v0.2.0) (2026-08-13)
-
-
-### Features
-
-* add Wayland evdev hotkeys ([891a3f3](https://github.com/rvboris/slovo/commit/891a3f384435ed0a33d02c08bf1b691293373a5f))
-* mic level overlay, server availability check; drop legacy Wayland portal ([d99d504](https://github.com/rvboris/slovo/commit/d99d5048b4575c6910124cbe0ef279622beea07e))
-* migrate frontend to React + Tailwind v4 + shadcn/ui ([d2167f8](https://github.com/rvboris/slovo/commit/d2167f8dc47b3e984d801ef2e3a7482595e07f69))
+## [0.4.1](https://github.com/rvboris/charon/compare/charon-v0.4.0...charon-v0.4.1) (2026-08-13)
 
 
 ### Bug Fixes
 
-* **hotkey:** allow changing global recording hotkey in production ([6159b14](https://github.com/rvboris/slovo/commit/6159b14809d1a38d16f49f376edd3ca279b0990b))
+* simplify logo glow and window title ([8a17951](https://github.com/rvboris/charon/commit/8a17951002866c24f61c38e9b071b552d7fd0c9a))
+
+## [0.4.0](https://github.com/rvboris/charon/compare/charon-v0.3.0...charon-v0.4.0) (2026-08-13)
+
+
+### Features
+
+* update application icon ([b71cdf7](https://github.com/rvboris/charon/commit/b71cdf70c454c875d154a197126bf219bd8141d2))
+
+## [0.3.0](https://github.com/rvboris/charon/compare/charon-v0.2.0...charon-v0.3.0) (2026-08-13)
+
+
+### Features
+
+* redesign UI — liquid-glass logo, canvas waveform overlay, theme toggle ([c8d2619](https://github.com/rvboris/charon/commit/c8d26193cac5a3d2453be724efb712392a3a0de1))
+
+## [0.2.0](https://github.com/rvboris/charon/compare/charon-v0.1.0...charon-v0.2.0) (2026-08-13)
+
+
+### Features
+
+* add Wayland evdev hotkeys ([891a3f3](https://github.com/rvboris/charon/commit/891a3f384435ed0a33d02c08bf1b691293373a5f))
+* mic level overlay, server availability check; drop legacy Wayland portal ([d99d504](https://github.com/rvboris/charon/commit/d99d5048b4575c6910124cbe0ef279622beea07e))
+* migrate frontend to React + Tailwind v4 + shadcn/ui ([d2167f8](https://github.com/rvboris/charon/commit/d2167f8dc47b3e984d801ef2e3a7482595e07f69))
+
+
+### Bug Fixes
+
+* **hotkey:** allow changing global recording hotkey in production ([6159b14](https://github.com/rvboris/charon/commit/6159b14809d1a38d16f49f376edd3ca279b0990b))

@@ -80,7 +80,7 @@ beforeEach(() => {
     .mockImplementation(
       async (name: string, callback: (event: { payload: number }) => void): Promise<() => void> => {
         await Promise.resolve();
-        if (name === "slovo://settings-changed") {
+        if (name === "charon://settings-changed") {
           settingsChanged = (): void => {
             callback({ payload: 0 });
           };
@@ -89,7 +89,7 @@ beforeEach(() => {
             unlistenSettings();
           };
         }
-        if (name === "slovo://exit-requested") {
+        if (name === "charon://exit-requested") {
           listeners.set(name, callback);
           return (): void => {
             unlistenExit();
@@ -137,7 +137,7 @@ describe("correction window", () => {
       expect(ready).toHaveBeenCalledTimes(1);
     });
     act(() => {
-      listeners.get("slovo://exit-requested")?.({ payload: 73 });
+      listeners.get("charon://exit-requested")?.({ payload: 73 });
     });
     await waitFor(() => {
       expect(api.invoke).toHaveBeenCalledWith("resolve_exit_request", {
@@ -268,7 +268,7 @@ it("returns without edits and keeps the exit handshake alive on the main screen"
   await user.click(screen.getByRole("button", { name: "Отмена" }));
   expect(screen.getByText("Главный экран")).toBeInTheDocument();
   act(() => {
-    listeners.get("slovo://exit-requested")?.({ payload: 81 });
+    listeners.get("charon://exit-requested")?.({ payload: 81 });
   });
   await waitFor(() => {
     expect(api.invoke).toHaveBeenCalledWith("resolve_exit_request", {
@@ -303,7 +303,7 @@ it("prioritizes an exit arriving during save over returning to main", async () =
   });
   await user.click(screen.getByRole("button", { name: "Сохранить" }));
   act(() => {
-    listeners.get("slovo://exit-requested")?.({ payload: 82 });
+    listeners.get("charon://exit-requested")?.({ payload: 82 });
   });
   expect(screen.getByRole("button", { name: "Отмена" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Выйти без сохранения" })).toBeDisabled();
@@ -349,6 +349,6 @@ it("reconnects failed exit registration before announcing readiness", async () =
   await waitFor(() => {
     expect(api.invoke).toHaveBeenCalledWith("correction_exit_ready");
   });
-  expect(listeners.has("slovo://exit-requested")).toBe(true);
+  expect(listeners.has("charon://exit-requested")).toBe(true);
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 });

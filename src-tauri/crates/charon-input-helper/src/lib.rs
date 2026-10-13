@@ -6,9 +6,9 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use slovo_shortcut_core::chord::ShortcutChord;
-use slovo_shortcut_core::matcher::{ChordSpec, MatchEvent, MatchState, Matcher};
-use slovo_shortcut_core::protocol::{
+use charon_shortcut_core::chord::ShortcutChord;
+use charon_shortcut_core::matcher::{ChordSpec, MatchEvent, MatchState, Matcher};
+use charon_shortcut_core::protocol::{
     decode_parent_line, encode_helper_line, read_bounded_line, EventState, HelperMessage,
     ParentCommand, ProtocolError, MAX_LINE_BYTES, PROTOCOL_VERSION,
 };
@@ -18,7 +18,7 @@ mod device_loop;
 use device_loop::{DeviceLoop, ScanSummary};
 
 pub(crate) fn evdev_debug_enabled() -> bool {
-    std::env::var_os("SLOVO_EVDEV_DEBUG").is_some_and(|value| value == "1")
+    std::env::var_os("CHARON_EVDEV_DEBUG").is_some_and(|value| value == "1")
 }
 
 pub fn run() -> Result<(), String> {
@@ -26,7 +26,7 @@ pub fn run() -> Result<(), String> {
     let parent_pid = unsafe { libc::getppid() };
     let (sender, receiver) = mpsc::channel();
     thread::Builder::new()
-        .name("slovo-helper-stdin".into())
+        .name("charon-helper-stdin".into())
         .spawn(move || read_commands(&sender))
         .map_err(|error| format!("cannot start command reader: {error}"))?;
 
@@ -50,7 +50,7 @@ pub fn run() -> Result<(), String> {
             pending.push(event);
             Ok(())
         }) {
-            eprintln!("[slovo-input-helper] device loop error: {error}");
+            eprintln!("[charon-input-helper] device loop error: {error}");
             emit(
                 &mut output,
                 &HelperMessage::Error {
@@ -101,7 +101,7 @@ pub fn run() -> Result<(), String> {
 //      where the parent crashes without closing stdin explicitly.
 //
 // A kernel parent-death signal is deliberately NOT used. The helper may be
-// spawned from a temporary thread (e.g. `slovo-shortcut-retry`), and on Linux
+// spawned from a temporary thread (e.g. `charon-shortcut-retry`), and on Linux
 // that signal fires on the death of the *creating thread*, not the process.
 // When that short-lived thread exits, the kernel delivers the signal and kills
 // the helper seconds after it starts. The combination of stdin EOF and getppid
@@ -287,7 +287,7 @@ impl CommandState {
         };
         if evdev_debug_enabled() {
             eprintln!(
-                "[slovo-input-helper] configured chord={chord} generation={generation} device_count={device_count}"
+                "[charon-input-helper] configured chord={chord} generation={generation} device_count={device_count}"
             );
         }
         if let Some(event) = self.matcher.configure(generation, ChordSpec::from(chord)) {
@@ -306,7 +306,7 @@ impl CommandState {
     fn emit_event<W: Write>(&mut self, event: MatchEvent, output: &mut W) -> Result<(), String> {
         if evdev_debug_enabled() {
             eprintln!(
-                "[slovo-input-helper] protocol event generation={} state={:?}",
+                "[charon-input-helper] protocol event generation={} state={:?}",
                 event.generation, event.state
             );
         }
@@ -444,7 +444,7 @@ mod protocol_tests {
             .unwrap();
         let messages: Vec<HelperMessage> = output
             .split_inclusive(|byte| *byte == b'\n')
-            .map(|line| slovo_shortcut_core::protocol::decode_helper_line(line).unwrap())
+            .map(|line| charon_shortcut_core::protocol::decode_helper_line(line).unwrap())
             .collect();
         assert!(matches!(
             messages[0],
@@ -480,7 +480,7 @@ fn summary_error(summary: &ScanSummary) -> (&'static str, &'static str) {
 
 fn report_scan_diagnostic(summary: &ScanSummary) {
     if summary.readable == 0 {
-        eprintln!("[slovo-input-helper] {}", summary_error(summary).1);
+        eprintln!("[charon-input-helper] {}", summary_error(summary).1);
     }
 }
 
@@ -496,19 +496,19 @@ mod tests {
         state.configure(1, 7, "Ctrl+Space", 2, &mut output).unwrap();
         state.matcher.input(
             1,
-            slovo_shortcut_core::matcher::InputCode::CtrlLeft,
-            slovo_shortcut_core::matcher::InputValue::Down,
+            charon_shortcut_core::matcher::InputCode::CtrlLeft,
+            charon_shortcut_core::matcher::InputValue::Down,
         );
         state.matcher.input(
             1,
-            slovo_shortcut_core::matcher::InputCode::Primary(57),
-            slovo_shortcut_core::matcher::InputValue::Down,
+            charon_shortcut_core::matcher::InputCode::Primary(57),
+            charon_shortcut_core::matcher::InputValue::Down,
         );
         output.clear();
         state.configure(2, 8, "Alt+KeyA", 2, &mut output).unwrap();
         let messages = output
             .split_inclusive(|byte| *byte == b'\n')
-            .map(|line| slovo_shortcut_core::protocol::decode_helper_line(line).unwrap())
+            .map(|line| charon_shortcut_core::protocol::decode_helper_line(line).unwrap())
             .collect::<Vec<_>>();
         assert!(matches!(
             messages[0],

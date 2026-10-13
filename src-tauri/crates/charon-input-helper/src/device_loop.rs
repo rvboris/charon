@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 use evdev::{Device, EventSummary, KeyCode};
 use polling::{Event, Events, PollMode, Poller};
 
-use slovo_shortcut_core::matcher::{DeviceId, InputCode, InputValue, MatchEvent, Matcher};
+use charon_shortcut_core::matcher::{DeviceId, InputCode, InputValue, MatchEvent, Matcher};
 
 use crate::evdev_debug_enabled;
 
@@ -105,7 +105,7 @@ impl DeviceLoop {
                     if registered.is_ok() {
                         if evdev_debug_enabled() {
                             eprintln!(
-                                "[slovo-input-helper] evdev accepted path={} id={} name={}",
+                                "[charon-input-helper] evdev accepted path={} id={} name={}",
                                 path.display(),
                                 id,
                                 device.name().unwrap_or("unknown")
@@ -193,13 +193,13 @@ impl DeviceLoop {
                                     {
                                         if evdev_debug_enabled() {
                                             eprintln!(
-                                                "[slovo-input-helper] evdev input id={id} code={code:?} value={value:?}"
+                                                "[charon-input-helper] evdev input id={id} code={code:?} value={value:?}"
                                             );
                                         }
                                         if let Some(event) = matcher.input(id, code, value) {
                                             if evdev_debug_enabled() {
                                                 eprintln!(
-                                                    "[slovo-input-helper] matcher emitted generation={} state={:?}",
+                                                    "[charon-input-helper] matcher emitted generation={} state={:?}",
                                                     event.generation, event.state
                                                 );
                                             }

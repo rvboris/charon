@@ -4,8 +4,8 @@
   "status": "current",
   "command": "deliver",
   "type": "architecture",
-  "input": "/home/boris/mygit/slovo/.archify/architecture-slovo-20261005-231527/candidate-review2.json",
-  "output": "/home/boris/mygit/slovo/.archify/architecture-slovo-20261005-231527/slovo.html",
+  "input": "/home/boris/mygit/charon/.archify/architecture-charon-20261005-231527/candidate-review2.json",
+  "output": "/home/boris/mygit/charon/.archify/architecture-charon-20261005-231527/charon.html",
   "specification": {
     "sha256": "58a1e355e071e0565d2c616f4ead3c0c83bb3ed195f33e1f7628a5fca64dd5a4",
     "bytes": 6641

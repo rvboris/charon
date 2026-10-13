@@ -39,10 +39,10 @@ describe("theme", () => {
     await flush();
     expect(result.current.theme).toBe("light");
     expect(localStorage.getItem("theme")).toBe("light");
-    expect(emit).toHaveBeenCalledWith("slovo://theme-changed", "light");
-    bus.send("slovo://theme-request", null);
+    expect(emit).toHaveBeenCalledWith("charon://theme-changed", "light");
+    bus.send("charon://theme-request", null);
     await flush();
-    expect(emit).toHaveBeenLastCalledWith("slovo://theme-changed", "light");
+    expect(emit).toHaveBeenLastCalledWith("charon://theme-changed", "light");
     unmount();
     expect(bus.dispose).toHaveBeenCalledOnce();
   });
@@ -69,10 +69,10 @@ describe("theme", () => {
     localStorage.setItem("theme", "light");
     const { result } = renderHook(() => useTheme());
     await flush();
-    expect(emit).toHaveBeenCalledWith("slovo://theme-request");
-    bus.send("slovo://theme-changed", "dark");
+    expect(emit).toHaveBeenCalledWith("charon://theme-request");
+    bus.send("charon://theme-changed", "dark");
     expect(result.current.theme).toBe("dark");
-    bus.send("slovo://theme-changed", "invalid");
+    bus.send("charon://theme-changed", "invalid");
     expect(result.current.theme).toBe("dark");
   });
   it("keeps local functionality after IPC failure and disposes late subscriptions", async () => {

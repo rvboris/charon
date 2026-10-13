@@ -23,7 +23,7 @@ function emit(name: string, payload: unknown): void {
   if (name === "status" && typeof payload === "object" && payload !== null) {
     value = { revision, ...payload };
   }
-  handlers.get(`slovo://${name}`)?.({ payload: value });
+  handlers.get(`charon://${name}`)?.({ payload: value });
 }
 function frame(): void {
   const entry = frames.entries().next().value;

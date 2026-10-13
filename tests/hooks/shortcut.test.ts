@@ -35,12 +35,12 @@ describe("shortcut status", () => {
       await result.current.loadShortcutStatus();
     });
     expect(result.current.status.view).toBe("active");
-    bus.send("slovo://shortcut-status", { setupAvailable: true, state: "permission-denied" });
+    bus.send("charon://shortcut-status", { setupAvailable: true, state: "permission-denied" });
     expect(result.current.status.canSetup).toBe(true);
     expect(onPermissionDenied).toHaveBeenLastCalledWith(true);
-    bus.send("slovo://shortcut-status", { state: "devices-unavailable" });
+    bus.send("charon://shortcut-status", { state: "devices-unavailable" });
     expect(result.current.status.canRetry).toBe(true);
-    bus.send("slovo://shortcut-status", { detail: " provider stopped ", state: "failed" });
+    bus.send("charon://shortcut-status", { detail: " provider stopped ", state: "failed" });
     expect(result.current.status.text).toContain("provider stopped");
   });
   it("does not let a stale load response overwrite a newer event", async () => {
@@ -52,7 +52,7 @@ describe("shortcut status", () => {
     act(() => {
       loading = result.current.loadShortcutStatus();
     });
-    bus.send("slovo://shortcut-status", { state: "active" });
+    bus.send("charon://shortcut-status", { state: "active" });
     await act(async () => {
       pending.resolve({ state: "failed" });
       await loading;

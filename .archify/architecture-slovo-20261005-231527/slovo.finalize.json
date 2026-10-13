@@ -7,12 +7,12 @@
   "quality": "showcase",
   "startedAt": "2026-10-05T20:17:19.920Z",
   "specification": {
-    "path": "/home/boris/mygit/slovo/.archify/architecture-slovo-20261005-231527/candidate.json",
+    "path": "/home/boris/mygit/charon/.archify/architecture-charon-20261005-231527/candidate.json",
     "sha256": "91a939e047cd452a6deccf276d481ce679e047e69b40ce59196fa633702ca119",
     "bytes": 4674
   },
   "artifact": {
-    "path": "/home/boris/mygit/slovo/.archify/architecture-slovo-20261005-231527/slovo.html",
+    "path": "/home/boris/mygit/charon/.archify/architecture-charon-20261005-231527/charon.html",
     "sha256": "3e00a04cb86dc66a334e191d0e6b16c59562f198a49a948b3b23931f32e3b643",
     "bytes": 779003
   },
@@ -27,8 +27,8 @@
         "/home/boris/.agents/skills/archify/bin/archify.mjs",
         "deliver",
         "architecture",
-        "/home/boris/mygit/slovo/.archify/architecture-slovo-20261005-231527/candidate.json",
-        "/home/boris/mygit/slovo/.archify/architecture-slovo-20261005-231527/slovo.html",
+        "/home/boris/mygit/charon/.archify/architecture-charon-20261005-231527/candidate.json",
+        "/home/boris/mygit/charon/.archify/architecture-charon-20261005-231527/charon.html",
         "--quality",
         "showcase",
         "--json"
@@ -60,8 +60,8 @@
         "/home/boris/.agents/skills/archify/bin/archify.mjs",
         "deliver",
         "architecture",
-        "/home/boris/mygit/slovo/.archify/architecture-slovo-20261005-231527/candidate.json",
-        "/home/boris/mygit/slovo/.archify/architecture-slovo-20261005-231527/slovo.html",
+        "/home/boris/mygit/charon/.archify/architecture-charon-20261005-231527/candidate.json",
+        "/home/boris/mygit/charon/.archify/architecture-charon-20261005-231527/charon.html",
         "--quality",
         "showcase",
         "--json"
@@ -72,8 +72,8 @@
         "ok": true,
         "command": "deliver",
         "type": "architecture",
-        "input": "/home/boris/mygit/slovo/.archify/architecture-slovo-20261005-231527/candidate.json",
-        "output": "/home/boris/mygit/slovo/.archify/architecture-slovo-20261005-231527/slovo.html",
+        "input": "/home/boris/mygit/charon/.archify/architecture-charon-20261005-231527/candidate.json",
+        "output": "/home/boris/mygit/charon/.archify/architecture-charon-20261005-231527/charon.html",
         "specification": {
           "sha256": "91a939e047cd452a6deccf276d481ce679e047e69b40ce59196fa633702ca119",
           "bytes": 4674
@@ -111,12 +111,12 @@
         "/home/boris/.local/share/mise/installs/node/24.16.0/bin/node",
         "/home/boris/.agents/skills/archify/bin/archify.mjs",
         "check",
-        "/home/boris/mygit/slovo/.archify/architecture-slovo-20261005-231527/slovo.html",
+        "/home/boris/mygit/charon/.archify/architecture-charon-20261005-231527/charon.html",
         "--require-provenance"
       ],
       "receipt": {
         "ok": true,
-        "file": "/home/boris/mygit/slovo/.archify/architecture-slovo-20261005-231527/slovo.html",
+        "file": "/home/boris/mygit/charon/.archify/architecture-charon-20261005-231527/charon.html",
         "artifact": {
           "sha256": "3e00a04cb86dc66a334e191d0e6b16c59562f198a49a948b3b23931f32e3b643",
           "bytes": 779003
@@ -396,7 +396,7 @@
         "/home/boris/.local/share/mise/installs/node/24.16.0/bin/node",
         "/home/boris/.agents/skills/archify/bin/archify.mjs",
         "browser-check",
-        "/home/boris/mygit/slovo/.archify/architecture-slovo-20261005-231527/slovo.html",
+        "/home/boris/mygit/charon/.archify/architecture-charon-20261005-231527/charon.html",
         "--json",
         "--require-provenance"
       ],
@@ -411,7 +411,7 @@
         "provenance": "current",
         "deliveryReceiptId": "a9214800-9bcf-4692-bf9f-bd84b9fba2f5",
         "artifact": {
-          "path": "/home/boris/mygit/slovo/.archify/architecture-slovo-20261005-231527/slovo.html",
+          "path": "/home/boris/mygit/charon/.archify/architecture-charon-20261005-231527/charon.html",
           "sha256": "3e00a04cb86dc66a334e191d0e6b16c59562f198a49a948b3b23931f32e3b643",
           "bytes": 779003
         },
@@ -1118,7 +1118,7 @@
           "contactSheet": null
         },
         "sidecars": {
-          "receipt": "slovo.browser-check.json",
+          "receipt": "charon.browser-check.json",
           "files": []
         }
       }
@@ -1126,9 +1126,9 @@
   },
   "diagnostics": [],
   "evidence": {
-    "receipt": "/home/boris/mygit/slovo/.archify/architecture-slovo-20261005-231527/slovo.finalize.json",
-    "summaryReceipt": "/home/boris/mygit/slovo/.archify/architecture-slovo-20261005-231527/slovo.finalize-summary.json",
-    "browserCheckReceipt": "/home/boris/mygit/slovo/.archify/architecture-slovo-20261005-231527/slovo.browser-check.json"
+    "receipt": "/home/boris/mygit/charon/.archify/architecture-charon-20261005-231527/charon.finalize.json",
+    "summaryReceipt": "/home/boris/mygit/charon/.archify/architecture-charon-20261005-231527/charon.finalize-summary.json",
+    "browserCheckReceipt": "/home/boris/mygit/charon/.archify/architecture-charon-20261005-231527/charon.browser-check.json"
   },
   "visualReview": "not-requested",
   "finishedAt": "2026-10-05T20:17:21.586Z",

@@ -17,7 +17,7 @@ function initialTheme(): Theme {
 
 async function publishTheme(theme: Theme): Promise<void> {
   try {
-    await emit("slovo://theme-changed", theme);
+    await emit("charon://theme-changed", theme);
   } catch {
     // Local preference remains available offline.
   }
@@ -33,11 +33,11 @@ function useThemeEvents(
     let unlisten: (() => void) | null = null;
     async function connect(): Promise<() => void> {
       if (primary) {
-        return listen("slovo://theme-request", (): void => {
+        return listen("charon://theme-request", (): void => {
           void publishTheme(current.current);
         });
       }
-      const dispose = await listen<unknown>("slovo://theme-changed", ({ payload }) => {
+      const dispose = await listen<unknown>("charon://theme-changed", ({ payload }) => {
         if (!cancelled && (payload === "light" || payload === "dark")) {
           setTheme(payload);
         }
@@ -54,7 +54,7 @@ function useThemeEvents(
         unlisten = dispose;
         // Subscribe before requesting the primary window's current theme.
         if (!primary) {
-          await emit("slovo://theme-request");
+          await emit("charon://theme-request");
         }
       } catch {
         // Stored preference remains the offline fallback.

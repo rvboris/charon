@@ -204,7 +204,7 @@ describe("settings public controls", () => {
       <StatusHeader kind="recording" text="Запись" theme="light" onToggleTheme={toggle} />,
     );
     expect(screen.getByText("Запись")).toBeVisible();
-    expect(view.container.querySelector("svg.slovo-mark")).toHaveAttribute("aria-hidden", "true");
+    expect(view.container.querySelector("svg.charon-mark")).toHaveAttribute("aria-hidden", "true");
     await user.click(screen.getByRole("button", { name: "Включить тёмную тему" }));
     await user.click(screen.getByRole("button", { name: "Свернуть окно" }));
     await user.click(screen.getByRole("button", { name: "Закрыть окно" }));

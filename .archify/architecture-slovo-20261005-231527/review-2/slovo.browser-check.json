@@ -8,7 +8,7 @@
   "provenance": "current",
   "deliveryReceiptId": "645471c0-fdee-4d4f-b848-21069aa5950a",
   "artifact": {
-    "path": "/home/boris/mygit/slovo/.archify/architecture-slovo-20261005-231527/slovo.html",
+    "path": "/home/boris/mygit/charon/.archify/architecture-charon-20261005-231527/charon.html",
     "sha256": "44a01f4f11c39d689ce68630f76eaf74a92a99b9d1246f848e643e1cbc1cb931",
     "bytes": 778883
   },
@@ -715,8 +715,8 @@
     "contactSheet": null
   },
   "sidecars": {
-    "directory": "/home/boris/mygit/slovo/.archify/architecture-slovo-20261005-231527/review-2",
-    "receipt": "slovo.browser-check.json",
+    "directory": "/home/boris/mygit/charon/.archify/architecture-charon-20261005-231527/review-2",
+    "receipt": "charon.browser-check.json",
     "files": []
   }
 }

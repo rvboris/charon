@@ -579,6 +579,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "charon-input-helper"
+version = "0.1.0"
+dependencies = [
+ "charon-shortcut-core",
+ "evdev",
+ "libc",
+ "polling",
+ "udev",
+]
+
+[[package]]
+name = "charon-shortcut-core"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "chrono"
 version = "0.4.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1777,10 +1796,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
-name = "homeborismygitslovo"
-version = "0.6.0"
+name = "homeborismygitcharon"
+version = "0.7.0"
 dependencies = [
  "arboard",
+ "charon-shortcut-core",
  "cpal",
  "enigo",
  "hound",
@@ -1788,7 +1808,6 @@ dependencies = [
  "reqwest 0.12.28",
  "serde",
  "serde_json",
- "slovo-shortcut-core",
  "tauri",
  "tauri-build",
  "tauri-plugin-global-shortcut",
@@ -3833,25 +3852,6 @@ name = "slab"
 version = "0.4.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
-
-[[package]]
-name = "slovo-input-helper"
-version = "0.1.0"
-dependencies = [
- "evdev",
- "libc",
- "polling",
- "slovo-shortcut-core",
- "udev",
-]
-
-[[package]]
-name = "slovo-shortcut-core"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
-]
 
 [[package]]
 name = "smallvec"

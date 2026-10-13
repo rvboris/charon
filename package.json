@@ -1,5 +1,5 @@
 {
-  "name": "homeborismygitslovo",
+  "name": "homeborismygitcharon",
   "private": true,
   "version": "0.8.0",
   "type": "module",
@@ -23,7 +23,7 @@
     "build:helper": "node scripts/build-helper.js --release",
     "dev:linux": "tauri dev --config src-tauri/tauri.linux.conf.json",
     "build:linux": "tauri build --config src-tauri/tauri.linux.conf.json",
-    "setup:ubuntu": "sudo install -Dm644 src-tauri/resources/72-slovo-input-helper.rules /usr/lib/udev/rules.d/72-slovo-input-helper.rules && sudo udevadm control --reload-rules && sudo udevadm trigger --subsystem-match=input --action=change"
+    "setup:ubuntu": "sudo install -Dm644 src-tauri/resources/72-charon-input-helper.rules /usr/lib/udev/rules.d/72-charon-input-helper.rules && sudo udevadm control --reload-rules && sudo udevadm trigger --subsystem-match=input --action=change"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.20",

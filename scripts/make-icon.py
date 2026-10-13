@@ -1,6 +1,6 @@
-# Generates src-tauri/icons/icon.png (1024x1024 RGBA) for Slovo.
+# Generates src-tauri/icons/icon.png (1024x1024 RGBA) for Charon.
 # Brand: dark rounded tile + soft indigo halo + the five-bar "С" mark
-# (same geometry as SlovoMark in src/components/StatusHeader.tsx), recolored
+# (same geometry as CharonMark in src/components/StatusHeader.tsx), recolored
 # bright so it stays readable down to the 16px taskbar/tray sizes.
 from PIL import Image, ImageDraw, ImageFilter
 
@@ -48,7 +48,7 @@ hd.ellipse([cx - S * 0.31, cy - S * 0.31, cx + S * 0.31, cy + S * 0.31], fill=(1
 halo = halo.filter(ImageFilter.GaussianBlur(S * 0.09))
 img.alpha_composite(halo)
 
-# --- five bars of the "С" mark, SlovoMark geometry on a 24-grid ---
+# --- five bars of the "С" mark, CharonMark geometry on a 24-grid ---
 mark = Image.new("RGBA", (S, S), (0, 0, 0, 0))
 md = ImageDraw.Draw(mark)
 # scale: mark spans x=3..21.6 of 24 (width 18.6) -> 66% of icon

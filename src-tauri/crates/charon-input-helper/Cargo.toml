@@ -1,5 +1,5 @@
 [package]
-name = "slovo-input-helper"
+name = "charon-input-helper"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,7 +7,7 @@ edition = "2021"
 workspace = true
 
 [dependencies]
-slovo-shortcut-core = { path = "../slovo-shortcut-core" }
+charon-shortcut-core = { path = "../charon-shortcut-core" }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 evdev = { version = "0.13.2", default-features = false }

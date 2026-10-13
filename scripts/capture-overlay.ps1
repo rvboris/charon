@@ -13,6 +13,6 @@ $y = $h - $regionH - 10
 $bmp = New-Object System.Drawing.Bitmap($regionW, $regionH)
 $g = [System.Drawing.Graphics]::FromImage($bmp)
 $g.CopyFromScreen($x, $y, 0, 0, $bmp.Size)
-$bmp.Save("C:\Users\user\mygit\slovo\overlay-after.png", [System.Drawing.Imaging.ImageFormat]::Png)
+$bmp.Save("C:\Users\user\mygit\charon\overlay-after.png", [System.Drawing.Imaging.ImageFormat]::Png)
 $g.Dispose(); $bmp.Dispose()
 Write-Host "saved overlay-after.png region ${regionW}x${regionH} at ($x,$y), screen ${w}x${h}"

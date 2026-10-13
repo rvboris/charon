@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Builds the slovo-input-helper sidecar binary for the current Linux target and
-// Stages it at src-tauri/binaries/slovo-input-helper-<triple>, which is where
+// Builds the charon-input-helper sidecar binary for the current Linux target and
+// Stages it at src-tauri/binaries/charon-input-helper-<triple>, which is where
 // Tauri's `bundle.externalBin` expects platform-suffixed sidecars to live.
 //
 // Scope:
@@ -28,7 +28,7 @@ const CLI_ARGUMENT_OFFSET = 2;
 const REPO_ROOT = path.join(import.meta.dirname, "..");
 const SRC_TAURI_DIR = path.join(REPO_ROOT, "src-tauri");
 const BINARIES_DIR = path.join(SRC_TAURI_DIR, "binaries");
-const CARGO_BIN_NAME = "slovo-input-helper";
+const CARGO_BIN_NAME = "charon-input-helper";
 // Tauri externalBin suffix uses the rust target triple verbatim (no vendor/os
 // Remapping). These are the Linux triples we explicitly support. Reject unknown
 // Triples loudly rather than silently emitting a mis-named sidecar.
@@ -184,7 +184,7 @@ function assertSupportedLinuxTriple(triple) {
     );
   }
   fatal(
-    `Target triple '${triple}' is not a supported Linux target. slovo-input-helper is Linux-only.`,
+    `Target triple '${triple}' is not a supported Linux target. charon-input-helper is Linux-only.`,
   );
 }
 
@@ -197,7 +197,7 @@ function cargoBuild({ debug, target }) {
   const args = [
     "build",
     "-p",
-    "slovo-input-helper",
+    "charon-input-helper",
     "--manifest-path",
     path.join(SRC_TAURI_DIR, "Cargo.toml"),
   ];
@@ -260,7 +260,7 @@ function main() {
     if (os === undefined || os === "") {
       os = process.platform;
     }
-    info(`Not Linux (platform='${os}'); skipping slovo-input-helper sidecar build.`);
+    info(`Not Linux (platform='${os}'); skipping charon-input-helper sidecar build.`);
     return;
   }
   const triple = resolveTargetTriple(opts.target);

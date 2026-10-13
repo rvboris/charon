@@ -5,11 +5,11 @@
     "beforeBuildCommand": "npm run build:helper && npm run build"
   },
   "bundle": {
-    "externalBin": ["binaries/slovo-input-helper"],
+    "externalBin": ["binaries/charon-input-helper"],
     "linux": {
       "deb": {
         "files": {
-          "/usr/lib/udev/rules.d/72-slovo-input-helper.rules": "resources/72-slovo-input-helper.rules"
+          "/usr/lib/udev/rules.d/72-charon-input-helper.rules": "resources/72-charon-input-helper.rules"
         },
         "postInstallScript": "debian/postinst"
       }

@@ -67,7 +67,7 @@ function useLoadShortcutStatus({
 }
 function permissionText(canSetup: boolean): string {
   if (canSetup) {
-    return "Нет доступа к клавиатуре. В Wayland для глобального сочетания нужно разрешить чтение устройств ввода — тогда Слово видит только нажатия назначенного сочетания. Откройте «Настроить доступ», чтобы разрешить, или повторите попытку.";
+    return "Нет доступа к клавиатуре. В Wayland для глобального сочетания нужно разрешить чтение устройств ввода — тогда Харон видит только нажатия назначенного сочетания. Откройте «Настроить доступ», чтобы разрешить, или повторите попытку.";
   }
   return "Нет доступа к клавиатуре. В Wayland для глобального сочетания нужно разрешить чтение устройств ввода. Повторите попытку.";
 }
@@ -129,7 +129,7 @@ function useShortcutEvents(
     async function subscribe(): Promise<void> {
       try {
         const dispose = await listen<ShortcutBackendStatusPayload>(
-          "slovo://shortcut-status",
+          "charon://shortcut-status",
           ({ payload }) => {
             if (!cancelled) {
               eventRevisionRef.current += 1;

@@ -1,4 +1,4 @@
-# Sends Ctrl+Shift+Space (default Slovo hotkey) via SendInput for smoke tests.
+# Sends Ctrl+Shift+Space (default Charon hotkey) via SendInput for smoke tests.
 # Usage: powershell -NoProfile -File send-hotkey.ps1
 Add-Type -TypeDefinition @'
 using System;

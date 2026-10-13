@@ -1,4 +1,4 @@
-# Слово
+# Харон
 
 Linux-first push-to-talk транскрипция. Записывает голос по горячей клавише, отправляет на локальный Whisper-совместимый сервер и вставляет распознанный текст в активное окно.
 
@@ -9,7 +9,7 @@ Linux-first push-to-talk транскрипция. Записывает голо
 - **Push-to-talk** — тригер на toggle, hold или auto-VAD
 - **Глобальный хоткей** — работает в любой раскладке, включая Cyrillic (напр. `Ctrl+Shift+Space`)
 - **Автовставка** — текст копируется в буфер и вставляется через `ydotool` (Wayland) или `enigo` (X11)
-- **Wayland evdev хоткеи** — через sidecar `slovo-input-helper` с udev-правилом
+- **Wayland evdev хоткеи** — через sidecar `charon-input-helper` с udev-правилом
 - **Тёмная/светлая тема** — ручной переключатель с сохранением в localStorage
 - **Настройка сервера** — любой OpenAI `/v1/audio/transcriptions` совместимый эндпоинт
 
@@ -17,15 +17,15 @@ Linux-first push-to-talk транскрипция. Записывает голо
 
 ### Готовые пакеты
 
-Скачай `.deb` или `.AppImage` со [страницы релизов](https://github.com/rvboris/slovo/releases).
+Скачай `.deb` или `.AppImage` со [страницы релизов](https://github.com/rvboris/charon/releases).
 
 ### Требования
 
-Для работы глобального хоткея на Wayland нужен `slovo-input-helper` sidecar с доступом к evdev. Пакеты `.deb` и `.AppImage` включают sidecar и udev-правило `72-slovo-input-helper.rules`, которое устанавливается автоматически при установке пакета.
+Для работы глобального хоткея на Wayland нужен `charon-input-helper` sidecar с доступом к evdev. Пакеты `.deb` и `.AppImage` включают sidecar и udev-правило `72-charon-input-helper.rules`, которое устанавливается автоматически при установке пакета.
 
 При ручной установке скопируй правило:
 ```bash
-sudo cp src-tauri/resources/72-slovo-input-helper.rules /etc/udev/rules.d/
+sudo cp src-tauri/resources/72-charon-input-helper.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules
 ```
 
@@ -78,8 +78,8 @@ npm run build:linux   # production-сборка: .deb + .AppImage
   - `transcription.rs` — клиент к Whisper-совместимому API
   - `output.rs` — вставка текста (Wayland: `ydotool`, X11: `enigo`)
   - `permissions.rs` — установка udev-правил для evdev
-  - `crates/slovo-input-helper` — root sidecar для чтения evdev-устройств
-  - `crates/slovo-shortcut-core` — ядро обработки шортката
+  - `crates/charon-input-helper` — root sidecar для чтения evdev-устройств
+  - `crates/charon-shortcut-core` — ядро обработки шортката
 - `src/` — React + Tailwind v4 + shadcn/ui фронтенд
 - `scripts/build-helper.js` — сборка sidecar для текущего таргета
 
@@ -95,9 +95,9 @@ npm run build:linux   # production-сборка: .deb + .AppImage
    - `feat!:` или `BREAKING CHANGE:` → major bump (X.0.0)
    - `chore:`, `docs:`, `ci:` — не создают релиз
 
-2. **Release-please автоматически открывает PR** `chore(main): release slovo X.Y.Z` с обновлённым `CHANGELOG.md` и версией во всех файлах.
+2. **Release-please автоматически открывает PR** `chore(main): release charon X.Y.Z` с обновлённым `CHANGELOG.md` и версией во всех файлах.
 
-3. **Смержи PR** — release-please создаст git-тег `slovo-vX.Y.Z` и GitHub Release.
+3. **Смержи PR** — release-please создаст git-тег `charon-vX.Y.Z` и GitHub Release.
 
 4. **CI соберёт артефакты** — GitHub Actions (`.github/workflows/release.yml`) соберёт `.deb` и `.AppImage` через `tauri-action` и прикрепит к Release.
 

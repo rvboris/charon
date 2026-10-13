@@ -327,7 +327,7 @@ function acceptStatus(payload: Readonly<RuntimeStatus>): void {
 async function subscribeAudio(): Promise<void> {
   try {
     retainListener(
-      await listen<unknown>("slovo://audio-level", (event: { readonly payload: unknown }) => {
+      await listen<unknown>("charon://audio-level", (event: { readonly payload: unknown }) => {
         if (lifecycle.cancelled) {
           return;
         }
@@ -353,7 +353,7 @@ async function loadInitialStatus(): Promise<void> {
   try {
     retainListener(
       await listen<Readonly<RuntimeStatus>>(
-        "slovo://status",
+        "charon://status",
         (event: { readonly payload: Readonly<RuntimeStatus> }) => {
           acceptStatus(event.payload);
         },

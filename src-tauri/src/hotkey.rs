@@ -21,7 +21,7 @@ use tauri_plugin_global_shortcut::{Shortcut, ShortcutEvent, ShortcutState};
 /// `manage_recording_overlay` is not involved).
 const AUDIO_LEVEL_INTERVAL: Duration = Duration::from_millis(80);
 
-/// Payload for the `slovo://audio-level` event. `device_name` is the cpal
+/// Payload for the `charon://audio-level` event. `device_name` is the cpal
 /// device that was actually opened (the system default when no device is
 /// configured), so the overlay can show which microphone is live alongside the
 /// level — making "wrong device selected" visible at a glance.
@@ -43,8 +43,8 @@ pub enum HotkeyEvent {
 /// Dispatcher that converts a normalized hotkey event into trigger/recording
 /// actions. Shared by the native shortcut handler and the Wayland helper.
 pub fn handle_hotkey_action(app: &AppHandle, event: HotkeyEvent) {
-    if std::env::var_os("SLOVO_EVDEV_DEBUG").is_some_and(|value| value == "1") {
-        eprintln!("[slovo] hotkey action boundary event={event:?}");
+    if std::env::var_os("CHARON_EVDEV_DEBUG").is_some_and(|value| value == "1") {
+        eprintln!("[charon] hotkey action boundary event={event:?}");
     }
     let Some(app_state) = app.try_state::<AppState>() else { return; };
     let Ok(mut processing) = app_state.processing.lock() else { return; };
@@ -91,9 +91,9 @@ fn handle_hotkey_action_locked(
 }
 
 pub(crate) fn handle_shortcut(app: &AppHandle, shortcut: &Shortcut, event: ShortcutEvent) {
-    if std::env::var_os("SLOVO_EVDEV_DEBUG").is_some_and(|value| value == "1") {
+    if std::env::var_os("CHARON_EVDEV_DEBUG").is_some_and(|value| value == "1") {
         eprintln!(
-            "[slovo] shortcut plugin event {shortcut:?} state={:?}",
+            "[charon] shortcut plugin event {shortcut:?} state={:?}",
             event.state()
         );
     }
@@ -280,7 +280,7 @@ fn spawn_audio_level_loop(app: AppHandle, started: Instant, device_name: String)
             // `manage_recording_overlay` (which performs window show/hide/resize)
             // is never triggered by the level heartbeat.
             let _ = app.emit(
-                "slovo://audio-level",
+                "charon://audio-level",
                 AudioLevel {
                     level,
                     device_name: device_name.clone(),

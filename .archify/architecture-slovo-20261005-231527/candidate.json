@@ -2,14 +2,14 @@
   "schema_version": 1,
   "diagram_type": "architecture",
   "meta": {
-    "title": "Slovo — Push-to-Talk Voice Transcription",
+    "title": "Charon — Push-to-Talk Voice Transcription",
     "subtitle": "Tauri 2 desktop app: global hotkey → record → transcribe → type into the active window (Linux, Wayland/X11)",
-    "output": ".archify/architecture-slovo-20261005-231527/slovo.html",
+    "output": ".archify/architecture-charon-20261005-231527/charon.html",
     "quality_profile": "showcase"
   },
   "components": [
     { "id": "user", "type": "external", "label": "User", "sublabel": "presses global hotkey", "pos": [40, 430], "size": [140, 70] },
-    { "id": "helper", "type": "external", "label": "slovo-input-helper", "sublabel": "evdev sidecar · udev rule", "pos": [40, 290], "size": [160, 80], "tag": "Wayland" },
+    { "id": "helper", "type": "external", "label": "charon-input-helper", "sublabel": "evdev sidecar · udev rule", "pos": [40, 290], "size": [160, 80], "tag": "Wayland" },
     { "id": "main-ui", "type": "frontend", "label": "Main Window", "sublabel": "React 19 · settings UI", "pos": [280, 300], "size": [160, 70] },
     { "id": "overlay", "type": "frontend", "label": "Recording Overlay", "sublabel": "recording.html", "pos": [280, 570], "size": [160, 70] },
     { "id": "correction", "type": "frontend", "label": "Correction Window", "sublabel": "edit before insert", "pos": [280, 435], "size": [160, 70] },
@@ -25,7 +25,7 @@
     { "id": "active-window", "type": "external", "label": "Active Window", "sublabel": "any focused app", "pos": [1090, 420], "size": [160, 70] }
   ],
   "boundaries": [
-    { "kind": "region", "label": "Slovo Desktop App — Tauri 2 (WebView + Rust)", "wraps": ["main-ui", "overlay", "correction", "commands", "settings", "shortcut", "hotkey", "audio", "transcription", "output"] },
+    { "kind": "region", "label": "Charon Desktop App — Tauri 2 (WebView + Rust)", "wraps": ["main-ui", "overlay", "correction", "commands", "settings", "shortcut", "hotkey", "audio", "transcription", "output"] },
     { "kind": "region", "label": "Linux OS (Wayland / X11)", "wraps": ["helper", "tools", "active-window"] }
   ],
   "connections": [

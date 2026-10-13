@@ -8,5 +8,5 @@
 
 # Generated sidecar binaries (built & staged by scripts/build-helper.js).
 # The build script itself and the platform config are tracked; only the
-# produced slovo-input-helper-<triple> artifacts are ephemeral.
+# produced charon-input-helper-<triple> artifacts are ephemeral.
 /binaries/

@@ -170,48 +170,48 @@ body::before {
 }
 
 /* ───────────────────────────────────────────────────────────────
-   "Слово" logo animation — idle voice-equalizer breathe.
+   "Харон" logo animation — idle voice-equalizer breathe.
    Five waveform bars scale vertically from their base, staggered so
    the group reads as a living voice/word. Each bar loops seamlessly
    (0% state == 100% state). Period ~2.4s, calm not frantic.
    Reduced-motion: freeze the bars at rest. ────────────────────── */
-.slovo-mark .slovo-bar {
+.charon-mark .charon-bar {
   transform-box: fill-box;
   transform-origin: 50% 100%;     /* scale up from the bar's base */
-  animation: slovo-breathe 2.4s var(--ease-out-fast) infinite;
+  animation: charon-breathe 2.4s var(--ease-out-fast) infinite;
   will-change: transform;
 }
 /* stagger the five bars so the wave travels across the mark */
-.slovo-mark .slovo-bar-1 { animation-delay: -0.0s; }
-.slovo-mark .slovo-bar-2 { animation-delay: -0.3s; }
-.slovo-mark .slovo-bar-3 { animation-delay: -0.6s; }
-.slovo-mark .slovo-bar-4 { animation-delay: -0.9s; }
-.slovo-mark .slovo-bar-5 { animation-delay: -1.2s; }
+.charon-mark .charon-bar-1 { animation-delay: -0.0s; }
+.charon-mark .charon-bar-2 { animation-delay: -0.3s; }
+.charon-mark .charon-bar-3 { animation-delay: -0.6s; }
+.charon-mark .charon-bar-4 { animation-delay: -0.9s; }
+.charon-mark .charon-bar-5 { animation-delay: -1.2s; }
 
-@keyframes slovo-breathe {
+@keyframes charon-breathe {
   0%, 100% { transform: scaleY(0.55); }   /* rests at a low level… */
   40%      { transform: scaleY(1);    }   /* …peaks like a syllable… */
   70%      { transform: scaleY(0.7);  }   /* …then settles back */
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .slovo-mark .slovo-bar {
+  .charon-mark .charon-bar {
     animation: none;
     transform: scaleY(0.78);              /* calm mid-level rest pose */
   }
-  .slovo-chip { animation: none; }
-  .slovo-bloom { display: none; }         /* no ambient pulse when reduced */
+  .charon-chip { animation: none; }
+  .charon-bloom { display: none; }         /* no ambient pulse when reduced */
 }
 
 /* Glow follows the SVG waveforms instead of the square layout wrapper. */
-.slovo-chip {
+.charon-chip {
   position: relative;
 }
-.slovo-mark {
+.charon-mark {
   filter: drop-shadow(0 0 5px oklch(0.55 0.22 280 / 0.70))
     drop-shadow(0 0 10px oklch(0.55 0.22 280 / 0.35));
 }
-.dark .slovo-mark {
+.dark .charon-mark {
   filter: drop-shadow(0 0 5px oklch(0.65 0.22 280 / 0.85))
     drop-shadow(0 0 11px oklch(0.65 0.22 280 / 0.45));
 }
@@ -224,7 +224,7 @@ body::before {
    three orbs staggered so a fresh bloom surfaces every 1.2s. Each orb
    is a small bounded element with filter:blur (cheap). A radial mask
    confines the bloom to the top-left corner, fading before form rows. */
-.slovo-bloom {
+.charon-bloom {
   position: absolute;
   left: 18px;                          /* chip center */
   top: 18px;
@@ -234,7 +234,7 @@ body::before {
   pointer-events: none;
 }
 
-.slovo-orb {
+.charon-orb {
   position: absolute;
   top: 0;
   left: 0;
@@ -252,17 +252,17 @@ body::before {
   opacity: 0;
   transform: scale(0.1);
   /* ease-in-out-cubic for a liquid swell, not a snap */
-  animation: slovo-bloom-out 5.2s cubic-bezier(0.45, 0, 0.25, 1) infinite;
+  animation: charon-bloom-out 5.2s cubic-bezier(0.45, 0, 0.25, 1) infinite;
   will-change: transform, opacity;
 }
 /* 5 orbs = continuous overlapping waves, not one lonely circle */
-.slovo-orb-1 { animation-delay: -0.0s; }
-.slovo-orb-2 { animation-delay: -1.04s; }
-.slovo-orb-3 { animation-delay: -2.08s; }
-.slovo-orb-4 { animation-delay: -3.12s; }
-.slovo-orb-5 { animation-delay: -4.16s; }
+.charon-orb-1 { animation-delay: -0.0s; }
+.charon-orb-2 { animation-delay: -1.04s; }
+.charon-orb-3 { animation-delay: -2.08s; }
+.charon-orb-4 { animation-delay: -3.12s; }
+.charon-orb-5 { animation-delay: -4.16s; }
 
-@keyframes slovo-bloom-out {
+@keyframes charon-bloom-out {
   0%   { transform: scale(0.08); opacity: 0;    }
   20%  { opacity: 0.75; }
   55%  { opacity: 0.35; }

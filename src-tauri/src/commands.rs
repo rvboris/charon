@@ -52,7 +52,7 @@ pub fn update_correction_settings(
         settings::save(&app, next)
     })?;
     drop(runtime);
-    let _ = app.emit("slovo://settings-changed", ());
+    let _ = app.emit("charon://settings-changed", ());
     Ok(next)
 }
 
@@ -134,7 +134,7 @@ pub fn retry_shortcut_backend(app: AppHandle) -> Result<ShortcutBackendStatus, S
     let app_for_retry = app.clone();
     let (sender, receiver) = mpsc::sync_channel(1);
     std::thread::Builder::new()
-        .name("slovo-shortcut-retry".into())
+        .name("charon-shortcut-retry".into())
         .spawn(move || {
             let state = app_for_retry.state::<AppState>();
             let hotkey = state
@@ -751,7 +751,7 @@ pub fn update_settings(app: AppHandle, settings: Settings) -> Result<Settings, S
         || with_shortcut_manager(&state, |manager| manager.status()),
     )?;
     drop(reservation);
-    let _ = app.emit("slovo://settings-changed", ());
+    let _ = app.emit("charon://settings-changed", ());
     Ok(result)
 }
 

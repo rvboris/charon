@@ -3,7 +3,7 @@
   "packages": {
     ".": {
       "release-type": "rust",
-      "package-name": "slovo",
+      "package-name": "charon",
       "changelog-path": "CHANGELOG.md",
       "versioning": "default",
       "extra-files": [
