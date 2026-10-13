@@ -46,8 +46,12 @@ pub fn handle_hotkey_action(app: &AppHandle, event: HotkeyEvent) {
     if std::env::var_os("CHARON_EVDEV_DEBUG").is_some_and(|value| value == "1") {
         eprintln!("[charon] hotkey action boundary event={event:?}");
     }
-    let Some(app_state) = app.try_state::<AppState>() else { return; };
-    let Ok(mut processing) = app_state.processing.lock() else { return; };
+    let Some(app_state) = app.try_state::<AppState>() else {
+        return;
+    };
+    let Ok(mut processing) = app_state.processing.lock() else {
+        return;
+    };
     handle_hotkey_action_locked(app, event, &mut processing, None);
 }
 
@@ -57,15 +61,23 @@ fn handle_hotkey_action_locked(
     processing: &mut bool,
     expected_shortcut: Option<&Shortcut>,
 ) {
-    let Some(app_state) = app.try_state::<AppState>() else { return; };
+    let Some(app_state) = app.try_state::<AppState>() else {
+        return;
+    };
     if let Some(expected) = expected_shortcut {
         let matches = app_state.settings.lock().is_ok_and(|runtime| {
             parse_hotkey(&runtime.registered_hotkey).as_ref().ok() == Some(expected)
         });
-        if !matches { return; }
+        if !matches {
+            return;
+        }
     }
-    if *processing { return; }
-    if app_state.is_hotkey_capture_active() { return; }
+    if *processing {
+        return;
+    }
+    if app_state.is_hotkey_capture_active() {
+        return;
+    }
     let trigger_type = match app_state.settings.lock() {
         Ok(runtime) => runtime.settings.trigger_type,
         Err(_) => return,
@@ -79,9 +91,17 @@ fn handle_hotkey_action_locked(
     };
     match action {
         Action::Start => {
-            if app_state.recording.lock().is_ok_and(|recording| recording.is_none()) {
+            if app_state
+                .recording
+                .lock()
+                .is_ok_and(|recording| recording.is_none())
+            {
                 if let Some(token) = app_state.begin_recording_start() {
-                    check_server_and_start_recording(app, trigger_type == TriggerType::AutoVad, token);
+                    check_server_and_start_recording(
+                        app,
+                        trigger_type == TriggerType::AutoVad,
+                        token,
+                    );
                 }
             }
         }
@@ -98,7 +118,9 @@ pub(crate) fn handle_shortcut(app: &AppHandle, shortcut: &Shortcut, event: Short
         );
     }
     let app_state = app.state::<AppState>();
-    let Ok(mut processing) = app_state.processing.lock() else { return; };
+    let Ok(mut processing) = app_state.processing.lock() else {
+        return;
+    };
     let normalized = match event.state() {
         ShortcutState::Pressed => HotkeyEvent::Pressed,
         ShortcutState::Released => HotkeyEvent::Released,
@@ -346,9 +368,15 @@ async fn process_transcription_result<C, CFut, O, E>(
     O: FnOnce(&str) -> Result<bool, String>,
     E: FnMut(StatusEvent),
 {
-    let mut publish = |kind, message, correction_warning, elapsed_seconds| emit(StatusEvent {
-        kind, revision: 0, message, correction_warning, elapsed_seconds,
-    });
+    let mut publish = |kind, message, correction_warning, elapsed_seconds| {
+        emit(StatusEvent {
+            kind,
+            revision: 0,
+            message,
+            correction_warning,
+            elapsed_seconds,
+        })
+    };
     match result {
         Ok(text) if text.trim().is_empty() => publish(StatusKind::Ready, None, None, None),
         Ok(mut text) => {
@@ -360,7 +388,8 @@ async fn process_transcription_result<C, CFut, O, E>(
                     Err(error) => warning = Some(error),
                 }
             }
-            let correction_warning = warning.map(|detail| format!("Корректировка не выполнена: {detail}"));
+            let correction_warning =
+                warning.map(|detail| format!("Корректировка не выполнена: {detail}"));
             match output_text(&text) {
                 Ok(true) => publish(StatusKind::Inserted, None, correction_warning, None),
                 Ok(false) => publish(
@@ -509,9 +538,21 @@ mod transcription_result_tests {
     fn correction_failure_falls_back_with_warning_for_all_output_results() {
         for (output, kind, message) in [
             (Ok(true), StatusKind::Inserted, None),
-            (Ok(false), StatusKind::Copied, Some("Copied to clipboard; paste injection is unavailable")),
-            (Err("clipboard populated; key injection failed".into()), StatusKind::Copied, Some("clipboard populated; key injection failed")),
-            (Err("insertion failed".into()), StatusKind::Error, Some("insertion failed")),
+            (
+                Ok(false),
+                StatusKind::Copied,
+                Some("Copied to clipboard; paste injection is unavailable"),
+            ),
+            (
+                Err("clipboard populated; key injection failed".into()),
+                StatusKind::Copied,
+                Some("clipboard populated; key injection failed"),
+            ),
+            (
+                Err("insertion failed".into()),
+                StatusKind::Error,
+                Some("insertion failed"),
+            ),
         ] {
             let (events, processing, output_text) = run(
                 &settings(true),
@@ -525,7 +566,10 @@ mod transcription_result_tests {
             let terminal = events.last().unwrap();
             assert!(std::mem::discriminant(&terminal.kind) == std::mem::discriminant(&kind));
             assert_eq!(terminal.message.as_deref(), message);
-            assert_eq!(terminal.correction_warning.as_deref(), Some("Корректировка не выполнена: offline"));
+            assert_eq!(
+                terminal.correction_warning.as_deref(),
+                Some("Корректировка не выполнена: offline")
+            );
         }
     }
 

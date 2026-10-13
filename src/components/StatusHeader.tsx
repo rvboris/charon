@@ -1,7 +1,7 @@
 import { Minus, Moon, Sun, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { JSX } from "react";
 import { CharonMark } from "./CharonMark";
+import type { JSX } from "react";
 import type { StatusKind } from "@/lib/types";
 import type { Theme } from "@/hooks/useTheme";
 import { cn } from "@/lib/utils";

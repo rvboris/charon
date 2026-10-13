@@ -87,21 +87,36 @@ pub(crate) struct ProcessingReservation<'a> {
 
 impl Drop for ProcessingReservation<'_> {
     fn drop(&mut self) {
-        if let Ok(mut processing) = self.processing.lock() { *processing = false; }
+        if let Ok(mut processing) = self.processing.lock() {
+            *processing = false;
+        }
     }
 }
 
 impl AppState {
     pub(crate) fn reserve_idle_processing(&self) -> Result<ProcessingReservation<'_>, String> {
-        let mut processing = self.processing.lock().map_err(|_| "processing lock poisoned")?;
-        let recording = self.recording.lock().map_err(|_| "recording lock poisoned")?;
-        if *processing || recording.is_some() || self.recording_start_token.load(Ordering::Acquire) & 1 == 1 {
-            return Err("Cannot change the hotkey while recording or processing is active.".to_owned());
+        let mut processing = self
+            .processing
+            .lock()
+            .map_err(|_| "processing lock poisoned")?;
+        let recording = self
+            .recording
+            .lock()
+            .map_err(|_| "recording lock poisoned")?;
+        if *processing
+            || recording.is_some()
+            || self.recording_start_token.load(Ordering::Acquire) & 1 == 1
+        {
+            return Err(
+                "Cannot change the hotkey while recording or processing is active.".to_owned(),
+            );
         }
         *processing = true;
         drop(recording);
         drop(processing);
-        Ok(ProcessingReservation { processing: &self.processing })
+        Ok(ProcessingReservation {
+            processing: &self.processing,
+        })
     }
 
     pub(crate) fn set_hotkey_capture(&self, active: bool, token: u64) -> Result<(), String> {
@@ -110,14 +125,24 @@ impl AppState {
             return Ok(());
         }
 
-        let processing = self.processing.lock().map_err(|_| "processing lock poisoned")?;
+        let processing = self
+            .processing
+            .lock()
+            .map_err(|_| "processing lock poisoned")?;
         let mut current = self.hotkey_capture.load(Ordering::Acquire);
         let result = loop {
-            if token < (current >> 1) { break Ok(()); }
+            if token < (current >> 1) {
+                break Ok(());
+            }
             if *processing {
                 break Err("Cannot capture a hotkey while processing is active.".to_owned());
             }
-            if self.recording.lock().map_err(|_| "recording lock poisoned")?.is_some() {
+            if self
+                .recording
+                .lock()
+                .map_err(|_| "recording lock poisoned")?
+                .is_some()
+            {
                 break Err("Cannot capture a hotkey while recording is active.".to_owned());
             }
             if self.recording_start_token.load(Ordering::Acquire) & 1 == 1 {
@@ -276,7 +301,9 @@ pub(crate) fn emit_status(app: &AppHandle, kind: StatusKind, message: Option<Str
 pub(crate) fn emit_status_event(app: &AppHandle, event: StatusEvent) {
     let state = app.state::<AppState>();
     let published = {
-        let Ok(mut current) = state.status.lock() else { return; };
+        let Ok(mut current) = state.status.lock() else {
+            return;
+        };
         publish_status_locked(&mut current, &state.status_revision, event, |published| {
             if let Err(error) = app.emit("charon://status", published.clone()) {
                 eprintln!("[charon] cannot emit status event: {error}");
@@ -309,17 +336,20 @@ fn with_current_status_revision<T>(
 
 fn queue_status_window_action(app: &AppHandle, event: StatusEvent, revision: u64) {
     let queued_app = app.clone();
-    if app.run_on_main_thread(move || {
-        let app = queued_app;
-        let state = app.state::<AppState>();
-        let presentation = status_presentation(&event.kind);
-        let current = with_current_status_revision(&state.status, revision, || {
-            manage_recording_overlay(&app, &event);
-        });
-        if current.is_some() && presentation.delay_hide {
-            queue_overlay_hide(app.clone(), revision);
-        }
-    }).is_err() {
+    if app
+        .run_on_main_thread(move || {
+            let app = queued_app;
+            let state = app.state::<AppState>();
+            let presentation = status_presentation(&event.kind);
+            let current = with_current_status_revision(&state.status, revision, || {
+                manage_recording_overlay(&app, &event);
+            });
+            if current.is_some() && presentation.delay_hide {
+                queue_overlay_hide(app.clone(), revision);
+            }
+        })
+        .is_err()
+    {
         eprintln!("[charon] could not queue status presentation");
     }
 }
@@ -328,30 +358,47 @@ fn queue_overlay_hide(app: AppHandle, revision: u64) {
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_secs(4)).await;
         let queued_app = app.clone();
-        if app.run_on_main_thread(move || {
-            let app = queued_app;
-            let state = app.state::<AppState>();
-            with_current_status_revision(&state.status, revision, || {
-                if let Some(window) = app.get_webview_window("recording-overlay") {
-                    if let Err(error) = hide_recording_overlay(&window) {
-                        eprintln!("[charon] recording overlay error: {error}");
+        if app
+            .run_on_main_thread(move || {
+                let app = queued_app;
+                let state = app.state::<AppState>();
+                with_current_status_revision(&state.status, revision, || {
+                    if let Some(window) = app.get_webview_window("recording-overlay") {
+                        if let Err(error) = hide_recording_overlay(&window) {
+                            eprintln!("[charon] recording overlay error: {error}");
+                        }
                     }
-                }
-            });
-        }).is_err() {
+                });
+            })
+            .is_err()
+        {
             eprintln!("[charon] could not queue overlay hide");
         }
     });
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct StatusPresentation { show: bool, delay_hide: bool }
+struct StatusPresentation {
+    show: bool,
+    delay_hide: bool,
+}
 
 fn status_presentation(kind: &StatusKind) -> StatusPresentation {
     match kind {
-        StatusKind::Recording | StatusKind::Transcribing | StatusKind::Correcting => StatusPresentation { show: true, delay_hide: false },
-        StatusKind::Inserted | StatusKind::Copied | StatusKind::Error => StatusPresentation { show: true, delay_hide: true },
-        StatusKind::Ready => StatusPresentation { show: false, delay_hide: false },
+        StatusKind::Recording | StatusKind::Transcribing | StatusKind::Correcting => {
+            StatusPresentation {
+                show: true,
+                delay_hide: false,
+            }
+        }
+        StatusKind::Inserted | StatusKind::Copied | StatusKind::Error => StatusPresentation {
+            show: true,
+            delay_hide: true,
+        },
+        StatusKind::Ready => StatusPresentation {
+            show: false,
+            delay_hide: false,
+        },
     }
 }
 
@@ -737,7 +784,13 @@ mod tests {
     use super::*;
 
     fn status_event(kind: StatusKind) -> StatusEvent {
-        StatusEvent { kind, revision: 0, message: None, correction_warning: None, elapsed_seconds: None }
+        StatusEvent {
+            kind,
+            revision: 0,
+            message: None,
+            correction_warning: None,
+            elapsed_seconds: None,
+        }
     }
 
     #[test]
@@ -746,7 +799,10 @@ mod tests {
         let revision = AtomicU64::new(0);
         let mut delivered = Vec::new();
         for kind in [StatusKind::Error, StatusKind::Recording] {
-            let event = publish_status_locked(&mut snapshot, &revision, status_event(kind), |event| delivered.push(event.clone()));
+            let event =
+                publish_status_locked(&mut snapshot, &revision, status_event(kind), |event| {
+                    delivered.push(event.clone())
+                });
             assert_eq!(event.revision, delivered.len() as u64);
             assert_eq!(snapshot.revision, event.revision);
             assert!(std::mem::discriminant(&snapshot.kind) == std::mem::discriminant(&event.kind));
@@ -759,12 +815,18 @@ mod tests {
     #[test]
     fn status_presentation_classifies_all_kinds() {
         for (kind, show, delay_hide) in [
-            (StatusKind::Recording, true, false), (StatusKind::Transcribing, true, false),
-            (StatusKind::Correcting, true, false), (StatusKind::Inserted, true, true),
-            (StatusKind::Copied, true, true), (StatusKind::Error, true, true),
+            (StatusKind::Recording, true, false),
+            (StatusKind::Transcribing, true, false),
+            (StatusKind::Correcting, true, false),
+            (StatusKind::Inserted, true, true),
+            (StatusKind::Copied, true, true),
+            (StatusKind::Error, true, true),
             (StatusKind::Ready, false, false),
         ] {
-            assert_eq!(status_presentation(&kind), StatusPresentation { show, delay_hide });
+            assert_eq!(
+                status_presentation(&kind),
+                StatusPresentation { show, delay_hide }
+            );
         }
     }
 
@@ -772,27 +834,59 @@ mod tests {
     fn delayed_hide_requires_matching_revision_and_does_not_mutate_snapshot() {
         let mut snapshot = status_event(StatusKind::Ready);
         let revision = AtomicU64::new(0);
-        let terminal = publish_status_locked(&mut snapshot, &revision, StatusEvent { message: Some("done".into()), correction_warning: Some("warning".into()), ..status_event(StatusKind::Error) }, |_| {});
+        let terminal = publish_status_locked(
+            &mut snapshot,
+            &revision,
+            StatusEvent {
+                message: Some("done".into()),
+                correction_warning: Some("warning".into()),
+                ..status_event(StatusKind::Error)
+            },
+            |_| {},
+        );
         let before = serde_json::to_value(&snapshot).unwrap();
         let hidden = std::cell::Cell::new(0);
         let status = Mutex::new(snapshot);
-        let pending_hide = || { with_current_status_revision(&status, terminal.revision, || hidden.set(hidden.get() + 1)); };
-        publish_status_locked(&mut status.lock().unwrap(), &revision, status_event(StatusKind::Recording), |_| {});
+        let pending_hide = || {
+            with_current_status_revision(&status, terminal.revision, || {
+                hidden.set(hidden.get() + 1)
+            });
+        };
+        publish_status_locked(
+            &mut status.lock().unwrap(),
+            &revision,
+            status_event(StatusKind::Recording),
+            |_| {},
+        );
         pending_hide();
         assert_eq!(hidden.get(), 0);
         let mut matching_snapshot = status_event(StatusKind::Ready);
-        let matching_terminal = publish_status_locked(&mut matching_snapshot, &AtomicU64::new(terminal.revision - 1), terminal.clone(), |_| {});
+        let matching_terminal = publish_status_locked(
+            &mut matching_snapshot,
+            &AtomicU64::new(terminal.revision - 1),
+            terminal.clone(),
+            |_| {},
+        );
         let matching_status = Mutex::new(matching_snapshot);
         let matching_before = serde_json::to_value(&*matching_status.lock().unwrap()).unwrap();
-        with_current_status_revision(&matching_status, matching_terminal.revision, || hidden.set(hidden.get() + 1));
+        with_current_status_revision(&matching_status, matching_terminal.revision, || {
+            hidden.set(hidden.get() + 1)
+        });
         assert_eq!(hidden.get(), 1);
-        assert_eq!(serde_json::to_value(&*matching_status.lock().unwrap()).unwrap(), matching_before);
+        assert_eq!(
+            serde_json::to_value(&*matching_status.lock().unwrap()).unwrap(),
+            matching_before
+        );
         assert_eq!(before, matching_before);
     }
 
     #[test]
     fn status_serialization_uses_camel_case_and_omits_empty_fields() {
-        let value = serde_json::to_value(StatusEvent { correction_warning: Some("warning".into()), ..status_event(StatusKind::Correcting) }).unwrap();
+        let value = serde_json::to_value(StatusEvent {
+            correction_warning: Some("warning".into()),
+            ..status_event(StatusKind::Correcting)
+        })
+        .unwrap();
         assert_eq!(value["correctionWarning"], "warning");
         assert!(value.get("elapsedSeconds").is_none());
         assert!(value.get("message").is_none());
@@ -803,10 +897,19 @@ mod tests {
         let status = Mutex::new(status_event(StatusKind::Error));
         let revision = status.lock().unwrap().revision;
         let ran = std::cell::Cell::new(false);
-        *status.lock().unwrap() = StatusEvent { revision: revision + 1, ..status_event(StatusKind::Recording) };
-        assert_eq!(with_current_status_revision(&status, revision, || ran.set(true)), None);
+        *status.lock().unwrap() = StatusEvent {
+            revision: revision + 1,
+            ..status_event(StatusKind::Recording)
+        };
+        assert_eq!(
+            with_current_status_revision(&status, revision, || ran.set(true)),
+            None
+        );
         assert!(!ran.get());
-        assert_eq!(with_current_status_revision(&status, revision + 1, || ran.set(true)), Some(()));
+        assert_eq!(
+            with_current_status_revision(&status, revision + 1, || ran.set(true)),
+            Some(())
+        );
         assert!(ran.get());
         assert_eq!(status.lock().unwrap().revision, revision + 1);
     }
@@ -915,7 +1018,10 @@ mod tests {
         let state = test_state();
         *state.processing.lock().unwrap() = true;
         assert!(state.set_hotkey_capture(true, 1).is_err());
-        assert!(!state.is_hotkey_capture_active(), "rejected capture must not activate");
+        assert!(
+            !state.is_hotkey_capture_active(),
+            "rejected capture must not activate"
+        );
         assert!(state.set_hotkey_capture(false, 1).is_ok());
         *state.processing.lock().unwrap() = false;
 

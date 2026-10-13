@@ -337,11 +337,15 @@ mod settings_transaction_tests {
             general_candidate(&original, &original.hotkey),
             &original.hotkey,
             BackendKind::Native,
-            |_| { replaces.set(replaces.get() + 1); unreachable!() },
+            |_| {
+                replaces.set(replaces.get() + 1);
+                unreachable!()
+            },
             |_| {},
             |_| Ok(()),
             || unreachable!(),
-        ).unwrap();
+        )
+        .unwrap();
         assert_eq!(replaces.get(), 0);
         assert_eq!(state.lock().unwrap().settings.hotkey, original.hotkey);
     }
@@ -718,7 +722,10 @@ pub fn update_settings(app: AppHandle, settings: Settings) -> Result<Settings, S
     // only long enough to snapshot the values we need; we deliberately drop
     // the guards before any blocking helper IPC.
     let (old_hotkey, current_settings) = {
-        let runtime = state.settings.lock().map_err(|_| "settings lock poisoned")?;
+        let runtime = state
+            .settings
+            .lock()
+            .map_err(|_| "settings lock poisoned")?;
         (runtime.registered_hotkey.clone(), runtime.settings.clone())
     };
     let changed_hotkey = next.hotkey != old_hotkey;

@@ -2,8 +2,8 @@ mod native;
 #[cfg(target_os = "linux")]
 mod wayland;
 
-pub use native::NativeShortcutBackend;
 pub use charon_shortcut_core::chord::{ShortcutChord, ShortcutError};
+pub use native::NativeShortcutBackend;
 
 /// Shortcut implementation selected by the runtime environment.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]

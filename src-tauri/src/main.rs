@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    homeborismygitcharon_lib::run();
+    charon_app_lib::run();
 }

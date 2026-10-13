@@ -15,15 +15,15 @@ redundant_pub_crate = "allow"
 unreachable_pub = "allow"
 
 [package]
-name = "homeborismygitcharon"
+name = "charon-app"
 version = "0.8.0"
 description = "Linux-first push-to-talk transcription"
 authors = ["Charon contributors"]
 edition = "2021"
-default-run = "homeborismygitcharon"
+default-run = "charon-app"
 
 [lib]
-name = "homeborismygitcharon_lib"
+name = "charon_app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [lints]

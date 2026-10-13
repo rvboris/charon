@@ -95,10 +95,7 @@ pub(crate) fn request_exit(app: &AppHandle) {
     };
     let window = app.get_webview_window("main");
     let action = {
-        let mut state = gate
-            .state
-            .lock()
-            .expect("charon exit gate lock poisoned");
+        let mut state = gate.state.lock().expect("charon exit gate lock poisoned");
         state.request(window.is_some())
     };
     match action {
@@ -150,10 +147,7 @@ pub(crate) fn resolve_exit(
         .try_state::<ExitGate>()
         .ok_or_else(|| "exit gate is unavailable".to_string())?;
     let exit_now = {
-        let mut state = gate
-            .state
-            .lock()
-            .expect("charon exit gate lock poisoned");
+        let mut state = gate.state.lock().expect("charon exit gate lock poisoned");
         state.resolve(request_id, approve)
     };
     if exit_now {
@@ -360,8 +354,11 @@ pub fn run() {
             }
 
             if exiting {
-                static SHUTDOWN_STARTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-                if SHUTDOWN_STARTED.swap(true, Ordering::AcqRel) { return; }
+                static SHUTDOWN_STARTED: std::sync::atomic::AtomicBool =
+                    std::sync::atomic::AtomicBool::new(false);
+                if SHUTDOWN_STARTED.swap(true, Ordering::AcqRel) {
+                    return;
+                }
                 if let Some(state) = app.try_state::<AppState>() {
                     // Publish lifecycle state before any status emission so a
                     // detached initializer cannot publish after shutdown starts.
@@ -395,7 +392,10 @@ mod tests {
     fn exits_immediately_without_main_window() {
         let mut state = ExitState::default();
         assert!(matches!(state.request(false), ExitAction::Exit));
-        assert!(matches!(state.request(false), ExitAction::None), "already approved");
+        assert!(
+            matches!(state.request(false), ExitAction::None),
+            "already approved"
+        );
     }
 
     #[test]
@@ -413,16 +413,22 @@ mod tests {
     #[test]
     fn cancel_allows_a_new_request() {
         let mut state = ExitState::default();
-        let ExitAction::Ask(first) = state.request(true) else { panic!() };
+        let ExitAction::Ask(first) = state.request(true) else {
+            panic!()
+        };
         assert!(!state.resolve(first, false), "cancel does not exit");
-        let ExitAction::Ask(second) = state.request(true) else { panic!() };
+        let ExitAction::Ask(second) = state.request(true) else {
+            panic!()
+        };
         assert_ne!(first, second);
     }
 
     #[test]
     fn stale_resolutions_are_ignored() {
         let mut state = ExitState::default();
-        let ExitAction::Ask(first) = state.request(true) else { panic!() };
+        let ExitAction::Ask(first) = state.request(true) else {
+            panic!()
+        };
         assert!(!state.resolve(first.wrapping_sub(1), true));
         assert!(!state.resolve(first + 1, false));
         assert!(state.resolve(first, true), "current id approves");
@@ -439,7 +445,9 @@ mod tests {
     #[test]
     fn main_exists_while_pending_is_resolved_once() {
         let mut state = ExitState::default();
-        let ExitAction::Ask(id) = state.request(true) else { panic!() };
+        let ExitAction::Ask(id) = state.request(true) else {
+            panic!()
+        };
         assert!(!state.resolve(id, false));
         assert!(matches!(state.request(true), ExitAction::Ask(next) if next != id));
     }
