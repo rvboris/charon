@@ -580,7 +580,7 @@ dependencies = [
 
 [[package]]
 name = "charon-app"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "arboard",
  "charon-shortcut-core",

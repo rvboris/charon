@@ -1,36 +1,25 @@
 # Changelog
 
-## [0.8.0](https://github.com/rvboris/charon/compare/charon-v0.8.0...charon-v0.8.0) (2026-10-13)
+## [0.9.0](https://github.com/rvboris/charon/compare/slovo-v0.8.0...charon-v0.9.0) (2026-10-14)
 
 
 ### Features
 
-* add custom window chrome ([0b9e212](https://github.com/rvboris/charon/commit/0b9e21207e16cfb41b07467e535e1e9797287681))
-* add Wayland evdev hotkeys ([891a3f3](https://github.com/rvboris/charon/commit/891a3f384435ed0a33d02c08bf1b691293373a5f))
-* inline correction settings and polished main window ([d27bd3b](https://github.com/rvboris/charon/commit/d27bd3b2dffe5a850f2a59348677b8da755e20d8))
-* inline correction settings and polished main window ([cacc596](https://github.com/rvboris/charon/commit/cacc596d000f3160841a2fae62c016a6cb15fe16))
-* mic level overlay, server availability check; drop legacy Wayland portal ([d99d504](https://github.com/rvboris/charon/commit/d99d5048b4575c6910124cbe0ef279622beea07e))
-* migrate frontend to React + Tailwind v4 + shadcn/ui ([d2167f8](https://github.com/rvboris/charon/commit/d2167f8dc47b3e984d801ef2e3a7482595e07f69))
-* redesign UI — liquid-glass logo, canvas waveform overlay, theme toggle ([c8d2619](https://github.com/rvboris/charon/commit/c8d26193cac5a3d2453be724efb712392a3a0de1))
-* update application icon ([b71cdf7](https://github.com/rvboris/charon/commit/b71cdf70c454c875d154a197126bf219bd8141d2))
-* **windows:** full Windows support ([f0fba69](https://github.com/rvboris/charon/commit/f0fba6988b9dc127ea7de2c683d138a07412b140))
-* **windows:** full Windows support for build, hotkeys, and output ([acbf879](https://github.com/rvboris/charon/commit/acbf879b802f431d15564320fcf363e0bb1b6da1))
+* rename project to Charon — crates, packages, identifiers and UI ([7c8a2ad](https://github.com/rvboris/charon/commit/7c8a2adf04a2e94757b41bea2685f2f4099d5781))
 
 
 ### Bug Fixes
 
-* enforce Rust quality checks ([d24acc5](https://github.com/rvboris/charon/commit/d24acc5c53f17b41b8af3209c089f9418e009bdf))
-* **hotkey:** allow changing global recording hotkey in production ([6159b14](https://github.com/rvboris/charon/commit/6159b14809d1a38d16f49f376edd3ca279b0990b))
 * satisfy clippy lints and react-compiler coverage checks ([f6cfa76](https://github.com/rvboris/charon/commit/f6cfa760e4102c7f1fe6a276816c4b891e47b389))
-* simplify logo glow and window title ([8a17951](https://github.com/rvboris/charon/commit/8a17951002866c24f61c38e9b071b552d7fd0c9a))
-* **windows:** remove the recording overlay window shadow ([24fa5c3](https://github.com/rvboris/charon/commit/24fa5c320b043af375f83fc2ce2dcdff7a21a024))
+* cover overlay resizing and fix assertion lints ([d9517f8](https://github.com/rvboris/charon/commit/d9517f8e80e0945eda116c1c8d34af076c392d41))
 
 
 ### Miscellaneous Chores
 
 * migrate to biome formatter alongside oxlint, reformat sources ([e24101f](https://github.com/rvboris/charon/commit/e24101fdbaab9728587d69e9078129b33ae2e11c))
+* crate/package name charon-app, fix lint and fmt after rename ([a4d72f1](https://github.com/rvboris/charon/commit/a4d72f1cbcd67225f26eb580e096292273f80d3b))
 
-## [0.8.0](https://github.com/rvboris/charon/compare/charon-v0.7.0...charon-v0.8.0) (2026-10-10)
+## [0.8.0](https://github.com/rvboris/charon/compare/slovo-v0.7.0...slovo-v0.8.0) (2026-10-10)
 
 
 ### Miscellaneous Chores
