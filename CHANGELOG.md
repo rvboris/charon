@@ -1,6 +1,25 @@
 # Changelog
 
-## [0.8.0](https://github.com/rvboris/charon/compare/charon-v0.7.0...charon-v0.8.0) (2026-10-10)
+## [0.9.0](https://github.com/rvboris/charon/compare/slovo-v0.8.0...charon-v0.9.0) (2026-10-14)
+
+
+### Features
+
+* rename project to Charon — crates, packages, identifiers and UI ([7c8a2ad](https://github.com/rvboris/charon/commit/7c8a2adf04a2e94757b41bea2685f2f4099d5781))
+
+
+### Bug Fixes
+
+* satisfy clippy lints and react-compiler coverage checks ([f6cfa76](https://github.com/rvboris/charon/commit/f6cfa760e4102c7f1fe6a276816c4b891e47b389))
+* cover overlay resizing and fix assertion lints ([d9517f8](https://github.com/rvboris/charon/commit/d9517f8e80e0945eda116c1c8d34af076c392d41))
+
+
+### Miscellaneous Chores
+
+* migrate to biome formatter alongside oxlint, reformat sources ([e24101f](https://github.com/rvboris/charon/commit/e24101fdbaab9728587d69e9078129b33ae2e11c))
+* crate/package name charon-app, fix lint and fmt after rename ([a4d72f1](https://github.com/rvboris/charon/commit/a4d72f1cbcd67225f26eb580e096292273f80d3b))
+
+## [0.8.0](https://github.com/rvboris/charon/compare/slovo-v0.7.0...slovo-v0.8.0) (2026-10-10)
 
 
 ### Miscellaneous Chores
