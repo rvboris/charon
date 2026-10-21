@@ -34,3 +34,6 @@ dist-ssr
 .slim/worktrees/
 .slim/worktrees.json
 # END oh-my-opencode-slim worktrees
+
+# Archify local output
+.archify/
