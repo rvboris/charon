@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/rvboris/charon/compare/charon-v1.0.0...charon-v1.0.1) (2026-11-26)
+
+
+### Bug Fixes
+
+* CI on cargo 1.100 and windows build ([c621aba](https://github.com/rvboris/charon/commit/c621aba207ceb0cb0f104e046319a556240c7c87))
+
 ## [1.0.0](https://github.com/rvboris/charon/compare/charon-v0.9.0...charon-v1.0.0) (2026-11-26)
 
 
