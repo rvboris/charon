@@ -119,12 +119,13 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                     },
                 );
                 if !state.is_shortcut_stopping() {
-                    let status = state.shortcut_status().unwrap_or_else(|_| {
-                        ShortcutBackendStatus::Failed {
-                            backend: BackendKind::WaylandHelper,
-                            detail: "shortcut lock poisoned".to_owned(),
-                        }
-                    });
+                    let status =
+                        state
+                            .shortcut_status()
+                            .unwrap_or_else(|_| ShortcutBackendStatus::Failed {
+                                backend: BackendKind::WaylandHelper,
+                                detail: "shortcut lock poisoned".to_owned(),
+                            });
                     state.set_shortcut_status(&app_for_shortcut, status);
                     if let Err(error) = result {
                         eprintln!("[charon] Wayland shortcut initialization failed: {error}");

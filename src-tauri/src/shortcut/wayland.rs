@@ -9,8 +9,8 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use super::{
-    BackendKind, EventDispatch, ShortcutBackendStatus, ShortcutChord, ShortcutError,
-    ShortcutEvent, StatusSink,
+    BackendKind, EventDispatch, ShortcutBackendStatus, ShortcutChord, ShortcutError, ShortcutEvent,
+    StatusSink,
 };
 use charon_shortcut_core::protocol::{
     decode_helper_line, encode_parent_line, read_bounded_line, EventState, HelperMessage,

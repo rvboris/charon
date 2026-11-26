@@ -13,10 +13,10 @@
 //! The remaining siblings (`audio`, `output`, `settings`, `shortcut`,
 //! `transcription`, `trigger`) are subsystem implementations.
 
-mod exit;
 mod app;
 mod audio;
 mod commands;
+mod exit;
 mod hotkey;
 mod output;
 mod overlay;

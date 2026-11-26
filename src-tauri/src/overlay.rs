@@ -6,8 +6,10 @@
 //! built and placed.
 
 use num_traits::ToPrimitive;
-use tauri::{AppHandle, LogicalSize, Manager, PhysicalPosition, Position, Size, WebviewWindow,
-    WebviewWindowBuilder};
+use tauri::{
+    AppHandle, LogicalSize, Manager, PhysicalPosition, Position, Size, WebviewWindow,
+    WebviewWindowBuilder,
+};
 
 /// Shows or hides the recording overlay for the current status presentation.
 /// `show == false` hides an existing window (creating nothing).

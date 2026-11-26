@@ -84,8 +84,7 @@ fn handle_hotkey_action_locked(
         Ok(settings) => settings.trigger_type,
         Err(_) => return,
     };
-    let Some(action) = app_state.trigger_event(trigger_type, event == HotkeyEvent::Pressed)
-    else {
+    let Some(action) = app_state.trigger_event(trigger_type, event == HotkeyEvent::Pressed) else {
         return;
     };
     match action {
@@ -389,14 +388,13 @@ pub(crate) fn wayland_hooks(app: &AppHandle) -> (EventDispatch, StatusSink) {
     let app_for_status = app.clone();
     // Reproduces the backend's raw publication exactly: no shutdown
     // suppression, unlike `AppState::set_shortcut_status`.
-    let status_sink: StatusSink = std::sync::Arc::new(move |status| {
-        match app_for_status.try_state::<AppState>() {
+    let status_sink: StatusSink =
+        std::sync::Arc::new(move |status| match app_for_status.try_state::<AppState>() {
             Some(state) => state.publish_shortcut_status_raw(&app_for_status, status),
             None => {
                 let _ = app_for_status.emit("charon://shortcut-status", status);
             }
-        }
-    });
+        });
     (dispatch, status_sink)
 }
 
