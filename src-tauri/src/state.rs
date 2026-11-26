@@ -6,18 +6,17 @@
 //! cannot drift apart and so the lock-ordering surface is small and explicit.
 
 use crate::audio::AudioController;
-use crate::settings::Settings;
-use crate::shortcut::{ShortcutBackendStatus, ShortcutManager};
-use crate::trigger::TriggerState;
-use num_traits::ToPrimitive;
+use crate::overlay::{hide_recording_overlay, manage_recording_overlay};
+use crate::settings::{self, Settings, TriggerType};
+use crate::shortcut::{
+    BackendKind, ShortcutBackendStatus, ShortcutChord, ShortcutManager,
+};
+use crate::trigger::{Action, TriggerState};
 use serde::Serialize;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::Instant;
-use tauri::{
-    AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, Position, Size, WebviewWindow,
-    WebviewWindowBuilder,
-};
+use tauri::{AppHandle, Emitter, Manager};
 
 /// Consolidated settings + registered hotkey string.
 ///
@@ -63,21 +62,21 @@ pub(crate) struct ShortcutRuntime {
 /// `shortcut_stopping` is lock-free lifecycle state and may be checked at any
 /// point, including while an operation owns `shortcut_operations`.
 pub struct AppState {
-    pub(crate) settings: Mutex<SettingsRuntime>,
-    pub(crate) trigger: Mutex<TriggerState>,
-    pub(crate) audio: AudioController,
-    pub(crate) recording: Mutex<Option<Instant>>,
+    settings: Mutex<SettingsRuntime>,
+    trigger: Mutex<TriggerState>,
+    audio: AudioController,
+    recording: Mutex<Option<Instant>>,
     // Serializes start/stop transitions; true blocks new jobs until output completes.
-    pub(crate) processing: Mutex<bool>,
+    processing: Mutex<bool>,
     /// Odd while a server check/start is pending; even otherwise.
     pub(crate) recording_start_token: AtomicU64,
-    pub(crate) shortcut: Mutex<ShortcutRuntime>,
-    pub(crate) shortcut_operations: Mutex<()>,
-    pub(crate) shortcut_stopping: AtomicBool,
+    shortcut: Mutex<ShortcutRuntime>,
+    shortcut_operations: Mutex<()>,
+    shortcut_stopping: AtomicBool,
     /// Monotonic capture token packed as `(token << 1) | active`.
     /// A token prevents a delayed end command from disabling a newer capture.
     hotkey_capture: std::sync::atomic::AtomicU64,
-    pub(crate) status: Mutex<StatusEvent>,
+    status: Mutex<StatusEvent>,
     status_revision: AtomicU64,
 }
 
@@ -183,6 +182,116 @@ impl AppState {
         self.hotkey_capture.load(Ordering::Acquire) & 1 == 1
     }
 
+    /// Snapshots the authoritative settings.
+    pub(crate) fn settings_snapshot(&self) -> Result<Settings, String> {
+        self.settings
+            .lock()
+            .map(|runtime| runtime.settings.clone())
+            .map_err(|_| "settings lock poisoned".into())
+    }
+
+    /// Snapshots the registered hotkey string.
+    pub(crate) fn registered_hotkey(&self) -> Result<String, String> {
+        self.settings
+            .lock()
+            .map(|runtime| runtime.registered_hotkey.clone())
+            .map_err(|_| "settings lock poisoned".to_owned())
+    }
+
+    /// Latest published shortcut backend status.
+    pub(crate) fn shortcut_status(&self) -> Result<ShortcutBackendStatus, String> {
+        self.shortcut
+            .lock()
+            .map(|runtime| runtime.status.clone())
+            .map_err(|_| "shortcut lock poisoned".into())
+    }
+
+    /// Backend kind of the latest published shortcut status.
+    pub(crate) fn shortcut_backend_kind(&self) -> Result<crate::shortcut::BackendKind, String> {
+        Ok(self
+            .shortcut
+            .lock()
+            .map_err(|_| "shortcut lock poisoned".to_string())?
+            .status
+            .backend())
+    }
+
+    /// Latest status event snapshot.
+    pub(crate) fn current_status(&self) -> Result<StatusEvent, String> {
+        self.status
+            .lock()
+            .map(|status| status.clone())
+            .map_err(|_| "status lock poisoned".into())
+    }
+
+    /// Applies a correction-settings update as one lock-held transaction.
+    pub(crate) fn update_correction_settings(
+        &self,
+        correction: settings::CorrectionSettings,
+        save: impl FnOnce(&Settings) -> Result<(), String>,
+    ) -> Result<Settings, String> {
+        let mut runtime = self
+            .settings
+            .lock()
+            .map_err(|_| "settings lock poisoned")?;
+        update_correction_settings_with(&mut runtime, correction, save)
+    }
+
+    /// Applies a general settings update as one serialized transaction.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn update_general_settings(
+        &self,
+        next: Settings,
+        old_hotkey: &str,
+        manager_kind: BackendKind,
+        replace: impl FnMut(
+            ShortcutChord,
+        ) -> Result<(Result<(), String>, ShortcutBackendStatus), String>,
+        publish_status: impl FnMut(ShortcutBackendStatus),
+        save: impl FnOnce(&Settings) -> Result<(), String>,
+        manager_status: impl FnOnce() -> Result<ShortcutBackendStatus, String>,
+    ) -> Result<Settings, String> {
+        update_general_settings_with(
+            &self.settings,
+            next,
+            old_hotkey,
+            manager_kind,
+            replace,
+            publish_status,
+            save,
+            manager_status,
+        )
+    }
+
+    /// Marks the shortcut subsystem as shutting down.
+    pub(crate) fn begin_shortcut_shutdown(&self) {
+        self.shortcut_stopping.store(true, Ordering::Release);
+    }
+
+    /// Whether shortcut shutdown has started.
+    pub(crate) fn is_shortcut_stopping(&self) -> bool {
+        self.shortcut_stopping.load(Ordering::Acquire)
+    }
+
+    /// Locks the settings runtime; `Err` means the lock is poisoned.
+    pub(crate) fn settings_runtime_lock(
+        &self,
+    ) -> Result<std::sync::MutexGuard<'_, SettingsRuntime>, String> {
+        self.settings.lock().map_err(|_| "settings lock poisoned".to_owned())
+    }
+
+    /// Locks the processing flag; `None` means the lock is poisoned.
+    pub(crate) fn processing_guard(&self) -> Option<std::sync::MutexGuard<'_, bool>> {
+        self.processing.lock().ok()
+    }
+
+    /// Releases an exclusive processing job.
+    pub(crate) fn finish_processing(&self) {
+        if let Ok(mut processing) = self.processing.lock() {
+            *processing = false;
+        }
+    }
+
     pub(crate) fn begin_recording_start(&self) -> Option<u64> {
         let current = self.recording_start_token.load(Ordering::Acquire);
         if current & 1 == 1 {
@@ -223,6 +332,99 @@ impl AppState {
                 Err(observed) => current = observed,
             }
         }
+    }
+
+    /// Applies a hotkey press or release to the trigger state machine and
+    /// returns the action it requests. `None` means the trigger lock is
+    /// poisoned, so the caller must drop the event.
+    pub(crate) fn trigger_event(&self, trigger_type: TriggerType, pressed: bool) -> Option<Action> {
+        let mut trigger = self.trigger.lock().ok()?;
+        Some(if pressed {
+            trigger.press(trigger_type)
+        } else {
+            trigger.release(trigger_type)
+        })
+    }
+
+    /// Forces the trigger state machine back to idle after a failed start or
+    /// a stop. A poisoned lock is ignored: the trigger is self-healing on the
+    /// next press cycle.
+    pub(crate) fn force_trigger_idle(&self) {
+        if let Ok(mut trigger) = self.trigger.lock() {
+            trigger.force_idle();
+        }
+    }
+
+    /// Whether no recording is in flight. A poisoned lock counts as busy, so
+    /// a broken state never lets a second recording start.
+    pub(crate) fn recording_is_idle(&self) -> bool {
+        self.recording
+            .lock()
+            .is_ok_and(|recording| recording.is_none())
+    }
+
+    /// Completes the start transition: marks the recording live at `started`
+    /// and publishes the initial `Recording` status so the overlay appears.
+    /// A poisoned `recording` lock still publishes; stop paths treat the
+    /// missing mark as "already cleared".
+    pub(crate) fn recording_started(&self, app: &AppHandle, started: Instant) {
+        if let Ok(mut recording) = self.recording.lock() {
+            *recording = Some(started);
+        }
+        self.emit_status_event(
+            app,
+            StatusEvent {
+                kind: StatusKind::Recording,
+                revision: 0,
+                message: None,
+                correction_warning: None,
+                elapsed_seconds: Some(0),
+            },
+        );
+    }
+
+    /// The start time of the current recording, if any (poisoned lock: none).
+    pub(crate) fn current_recording_start(&self) -> Option<Instant> {
+        self.recording.lock().ok().and_then(|recording| *recording)
+    }
+
+    /// Whether `started` is still the live recording. A poisoned lock or a
+    /// replaced recording means it is not.
+    pub(crate) fn recording_is_current(&self, started: Instant) -> bool {
+        self.recording
+            .lock()
+            .is_ok_and(|recording| *recording == Some(started))
+    }
+
+    /// Removes and returns the live recording's start time, atomically
+    /// claiming the stop transition. `None` means someone else already
+    /// stopped it (or the lock is poisoned).
+    pub(crate) fn take_recording_start(&self) -> Option<Instant> {
+        self.recording
+            .lock()
+            .ok()
+            .and_then(|mut recording| recording.take())
+    }
+
+    /// Starts audio capture; `on_auto_stop` runs when VAD ends the recording
+    /// on its own. Returns the cpal name of the device actually opened.
+    pub(crate) fn start_audio(
+        &self,
+        auto_vad: bool,
+        device_name: Option<String>,
+        on_auto_stop: Box<dyn Fn() + Send + Sync + 'static>,
+    ) -> Result<String, String> {
+        self.audio.start(auto_vad, device_name, on_auto_stop)
+    }
+
+    /// Stops audio capture and returns the recorded WAV bytes.
+    pub(crate) fn stop_audio(&self) -> Result<Vec<u8>, String> {
+        self.audio.stop()
+    }
+
+    /// Normalized live microphone level, `0.0` when not recording.
+    pub(crate) fn audio_level(&self) -> f32 {
+        self.audio.level()
     }
 
     pub(crate) fn new(
@@ -285,32 +487,85 @@ pub(crate) struct StatusEvent {
     pub(crate) elapsed_seconds: Option<u64>,
 }
 
-pub(crate) fn emit_status(app: &AppHandle, kind: StatusKind, message: Option<String>) {
-    emit_status_event(
-        app,
-        StatusEvent {
-            kind,
-            revision: 0,
-            message,
-            correction_warning: None,
-            elapsed_seconds: None,
-        },
-    );
-}
+impl AppState {
+    pub(crate) fn emit_status(&self, app: &AppHandle, kind: StatusKind, message: Option<String>) {
+        self.emit_status_event(
+            app,
+            StatusEvent {
+                kind,
+                revision: 0,
+                message,
+                correction_warning: None,
+                elapsed_seconds: None,
+            },
+        );
+    }
 
-pub(crate) fn emit_status_event(app: &AppHandle, event: StatusEvent) {
-    let state = app.state::<AppState>();
-    let published = {
-        let Ok(mut current) = state.status.lock() else {
-            return;
+    pub(crate) fn emit_status_event(&self, app: &AppHandle, event: StatusEvent) {
+        let published = {
+            let Ok(mut current) = self.status.lock() else {
+                return;
+            };
+            publish_status_locked(&mut current, &self.status_revision, event, |published| {
+                if let Err(error) = app.emit("charon://status", published.clone()) {
+                    eprintln!("[charon] cannot emit status event: {error}");
+                }
+            })
         };
-        publish_status_locked(&mut current, &state.status_revision, event, |published| {
-            if let Err(error) = app.emit("charon://status", published.clone()) {
-                eprintln!("[charon] cannot emit status event: {error}");
+        Self::queue_status_window_action(app, published.clone(), published.revision);
+    }
+
+    fn queue_status_window_action(app: &AppHandle, event: StatusEvent, revision: u64) {
+        let queued_app = app.clone();
+        if app
+            .run_on_main_thread(move || {
+                let app = queued_app;
+                let state = app.state::<Self>();
+                state.run_status_window_action(&app, &event, revision);
+            })
+            .is_err()
+        {
+            eprintln!("[charon] could not queue status presentation");
+        }
+    }
+
+    fn run_status_window_action(&self, app: &AppHandle, event: &StatusEvent, revision: u64) {
+        let presentation = status_presentation(&event.kind);
+        let current =
+            with_current_status_revision(&self.status, revision, || {
+                manage_recording_overlay(app, presentation.show);
+            });
+        if current.is_some() && presentation.delay_hide {
+            Self::queue_overlay_hide(app.clone(), revision);
+        }
+    }
+
+    fn queue_overlay_hide(app: AppHandle, revision: u64) {
+        tauri::async_runtime::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_secs(4)).await;
+            let queued_app = app.clone();
+            if app
+                .run_on_main_thread(move || {
+                    let app = queued_app;
+                    let state = app.state::<Self>();
+                    state.hide_overlay_if_current(&app, revision);
+                })
+                .is_err()
+            {
+                eprintln!("[charon] could not queue overlay hide");
             }
-        })
-    };
-    queue_status_window_action(app, published.clone(), published.revision);
+        });
+    }
+
+    fn hide_overlay_if_current(&self, app: &AppHandle, revision: u64) {
+        with_current_status_revision(&self.status, revision, || {
+            if let Some(window) = app.get_webview_window("recording-overlay") {
+                if let Err(error) = hide_recording_overlay(&window) {
+                    eprintln!("[charon] recording overlay error: {error}");
+                }
+            }
+        });
+    }
 }
 
 fn publish_status_locked(
@@ -332,49 +587,6 @@ fn with_current_status_revision<T>(
 ) -> Option<T> {
     let current = status.lock().ok()?;
     (current.revision == expected).then(action)
-}
-
-fn queue_status_window_action(app: &AppHandle, event: StatusEvent, revision: u64) {
-    let queued_app = app.clone();
-    if app
-        .run_on_main_thread(move || {
-            let app = queued_app;
-            let state = app.state::<AppState>();
-            let presentation = status_presentation(&event.kind);
-            let current = with_current_status_revision(&state.status, revision, || {
-                manage_recording_overlay(&app, &event);
-            });
-            if current.is_some() && presentation.delay_hide {
-                queue_overlay_hide(app.clone(), revision);
-            }
-        })
-        .is_err()
-    {
-        eprintln!("[charon] could not queue status presentation");
-    }
-}
-
-fn queue_overlay_hide(app: AppHandle, revision: u64) {
-    tauri::async_runtime::spawn(async move {
-        tokio::time::sleep(std::time::Duration::from_secs(4)).await;
-        let queued_app = app.clone();
-        if app
-            .run_on_main_thread(move || {
-                let app = queued_app;
-                let state = app.state::<AppState>();
-                with_current_status_revision(&state.status, revision, || {
-                    if let Some(window) = app.get_webview_window("recording-overlay") {
-                        if let Err(error) = hide_recording_overlay(&window) {
-                            eprintln!("[charon] recording overlay error: {error}");
-                        }
-                    }
-                });
-            })
-            .is_err()
-        {
-            eprintln!("[charon] could not queue overlay hide");
-        }
-    });
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -402,109 +614,101 @@ fn status_presentation(kind: &StatusKind) -> StatusPresentation {
     }
 }
 
-fn manage_recording_overlay(app: &AppHandle, event: &StatusEvent) {
-    let result = if status_presentation(&event.kind).show {
-        get_or_create_recording_overlay(app).and_then(|window| show_recording_overlay(&window))
-    } else {
-        app.get_webview_window("recording-overlay")
-            .map_or(Ok(()), |window| hide_recording_overlay(&window))
-    };
-    if let Err(error) = result {
-        eprintln!("[charon] recording overlay error: {error}");
-    }
+fn update_correction_settings_with(
+    runtime: &mut SettingsRuntime,
+    correction: settings::CorrectionSettings,
+    save: impl FnOnce(&Settings) -> Result<(), String>,
+) -> Result<Settings, String> {
+    let mut next = runtime.settings.clone();
+    correction.apply(&mut next)?;
+    save(&next)?;
+    runtime.settings = next.clone();
+    Ok(next)
 }
 
-fn get_or_create_recording_overlay(app: &AppHandle) -> Result<WebviewWindow, String> {
-    if let Some(window) = app.get_webview_window("recording-overlay") {
-        return Ok(window);
-    }
-
-    let config = app
-        .config()
-        .app
-        .windows
-        .iter()
-        .find(|config| config.label == "recording-overlay")
-        .ok_or_else(|| "recording overlay config not found".to_owned())?;
-
-    WebviewWindowBuilder::from_config(app, config)
-        .map_err(|error| format!("cannot configure recording overlay: {error}"))?
-        .visible(false)
-        .focusable(false)
-        .build()
-        .map_err(|error| format!("cannot build recording overlay: {error}"))
+#[allow(clippy::too_many_arguments)]
+fn update_general_settings_with(
+    settings: &std::sync::Mutex<SettingsRuntime>,
+    mut next: Settings,
+    old_hotkey: &str,
+    manager_kind: BackendKind,
+    replace: impl FnMut(ShortcutChord) -> Result<(Result<(), String>, ShortcutBackendStatus), String>,
+    publish_status: impl FnMut(ShortcutBackendStatus),
+    save: impl FnOnce(&Settings) -> Result<(), String>,
+    manager_status: impl FnOnce() -> Result<ShortcutBackendStatus, String>,
+) -> Result<Settings, String> {
+    next.hotkey
+        .parse::<ShortcutChord>()
+        .map_err(|error| error.to_string())?;
+    update_general_settings_transaction(
+        settings,
+        &mut next,
+        old_hotkey,
+        manager_kind,
+        replace,
+        publish_status,
+        save,
+        manager_status,
+    )
 }
 
-fn show_recording_overlay(window: &WebviewWindow) -> Result<(), String> {
-    const OVERLAY_W: f64 = 172.0;
-    const OVERLAY_H: f64 = 48.0;
-
-    // Do not trust a compositor-restored/default geometry: the card fills this
-    // surface, so a stale square window turns the rounded card into a huge disk.
-    window
-        .set_size(Size::Logical(LogicalSize::new(OVERLAY_W, OVERLAY_H)))
-        .map_err(|error| format!("cannot size recording overlay: {error}"))?;
-
-    // Position computation is harmless on X11; on GNOME/Mutter (Wayland) the
-    // compositor places the surface itself and `set_position` is a no-op.
-    if let Some(monitor) = window
-        .primary_monitor()
-        .map_err(|error| format!("cannot get primary monitor: {error}"))?
-    {
-        let monitor_size = monitor.size();
-        let monitor_position = monitor.position();
-        // Use the requested logical size scaled to physical pixels instead of
-        // querying outer_size(): on XWayland the previous set_size may not have
-        // taken effect yet, so outer_size() returns the stale default geometry
-        // and the first-show position ends up shifted.
-        let scale = monitor.scale_factor();
-        let window_w = (OVERLAY_W * scale)
-            .round()
-            .to_i32()
-            .ok_or_else(|| "recording overlay width exceeds supported range".to_owned())?;
-        let window_h = (OVERLAY_H * scale)
-            .round()
-            .to_i32()
-            .ok_or_else(|| "recording overlay height exceeds supported range".to_owned())?;
-        let monitor_w = i32::try_from(monitor_size.width)
-            .map_err(|_| "primary monitor width exceeds supported range".to_owned())?;
-        let monitor_h = i32::try_from(monitor_size.height)
-            .map_err(|_| "primary monitor height exceeds supported range".to_owned())?;
-        let bottom_margin = (28.0 * scale)
-            .round()
-            .to_i32()
-            .ok_or_else(|| "recording overlay margin exceeds supported range".to_owned())?;
-        let x = monitor_position.x + (monitor_w - window_w) / 2;
-        let y = monitor_position.y + monitor_h - window_h - bottom_margin;
-        window
-            .set_position(Position::Physical(PhysicalPosition { x, y }))
-            .map_err(|error| format!("cannot position recording overlay: {error}"))?;
+#[allow(clippy::too_many_arguments)]
+fn update_general_settings_transaction(
+    settings: &std::sync::Mutex<SettingsRuntime>,
+    next: &mut Settings,
+    old_hotkey: &str,
+    manager_kind: BackendKind,
+    mut replace: impl FnMut(
+        ShortcutChord,
+    ) -> Result<(Result<(), String>, ShortcutBackendStatus), String>,
+    mut publish_status: impl FnMut(ShortcutBackendStatus),
+    save: impl FnOnce(&Settings) -> Result<(), String>,
+    manager_status: impl FnOnce() -> Result<ShortcutBackendStatus, String>,
+) -> Result<Settings, String> {
+    if next.hotkey != old_hotkey {
+        let (result, status) = replace(
+            next.hotkey
+                .parse()
+                .map_err(|error: crate::shortcut::ShortcutError| error.to_string())?,
+        )?;
+        publish_status(status);
+        result?;
     }
-    // Re-assert these at show time: GNOME/Mutter often ignores the static
-    // tauri.conf.json window flags and needs them set just before mapping.
-    window
-        .set_always_on_top(true)
-        .map_err(|error| format!("cannot set recording overlay always on top: {error}"))?;
-    window
-        .set_skip_taskbar(true)
-        .map_err(|error| format!("cannot skip taskbar for recording overlay: {error}"))?;
-    window
-        .show()
-        .map_err(|error| format!("cannot show recording overlay: {error}"))?;
-    Ok(())
-}
-
-fn hide_recording_overlay(window: &WebviewWindow) -> Result<(), String> {
-    window
-        .hide()
-        .map_err(|error| format!("cannot hide recording overlay: {error}"))
+    let authoritative = settings
+        .lock()
+        .map_err(|_| "settings lock poisoned")?
+        .settings
+        .clone();
+    settings::preserve_correction(next, &authoritative);
+    if let Err(error) = save(next) {
+        if next.hotkey != old_hotkey {
+            let old_chord = old_hotkey
+                .parse::<ShortcutChord>()
+                .map_err(|parse_error| parse_error.to_string())?;
+            let (rollback, _) = replace(old_chord)?;
+            if let Err(rollback) = rollback {
+                publish_status(ShortcutBackendStatus::Failed {
+                    backend: manager_kind,
+                    detail: "Не удалось восстановить прежнюю горячую клавишу.".to_owned(),
+                });
+                return Err(format!("{error}; shortcut rollback failed: {rollback}"));
+            }
+            publish_status(manager_status()?);
+        }
+        return Err(error);
+    }
+    let mut runtime = settings.lock().map_err(|_| "settings lock poisoned")?;
+    runtime.settings = next.clone();
+    runtime.registered_hotkey.clone_from(&next.hotkey);
+    drop(runtime);
+    Ok(next.clone())
 }
 
 /// RAII guard that restores the [`ShortcutManager`] into [`ShortcutRuntime`]
 /// when dropped.  This prevents the manager from being permanently lost if the
 /// operation panics or returns early.
 struct ManagerGuard<'a> {
-    shortcut: &'a Mutex<ShortcutRuntime>,
+    state: &'a AppState,
     manager: Option<ShortcutManager>,
 }
 
@@ -520,263 +724,291 @@ impl ManagerGuard<'_> {
 impl Drop for ManagerGuard<'_> {
     fn drop(&mut self) {
         if let Some(manager) = self.manager.take() {
-            // Best-effort restore; if the mutex is poisoned the manager is
-            // abandoned, but that state already implies an unrecoverable panic.
-            if let Ok(mut runtime) = self.shortcut.lock() {
-                runtime.status = manager.status();
-                runtime.manager = Some(manager);
-            }
+            self.state.restore_shortcut_manager(manager);
         }
     }
 }
 
-/// Runs `operation` against the live [`ShortcutManager`] while guaranteeing
-/// that neither `set_shared_status` (called by Wayland helper methods) nor the
-/// protocol reader thread can deadlock on `state.shortcut`.
-///
-/// # Design
-///
-/// The manager is **taken** out of [`ShortcutRuntime`] under `shortcut` lock,
-/// after which the lock is dropped.  The operation then runs free of the
-/// `shortcut` mutex — so any internal status publication
-/// (`set_shared_status`) or channel wait (`wait_for`) cannot cause a
-/// self-deadlock or circular wait with the reader thread.
-///
-/// A [`ManagerGuard`] restores the manager and refreshes the cached status on
-/// drop (including on panic/early-return), so readers always see a consistent
-/// runtime.
-///
-/// `shortcut_operations` is still acquired first as a serialization primitive,
-/// ensuring a second caller cannot observe the temporarily empty manager slot.
-pub(crate) fn with_shortcut_manager<T>(
-    state: &AppState,
-    operation: impl FnOnce(&mut ShortcutManager) -> T,
-) -> Result<T, String> {
-    with_extracted_shortcut_manager(&state.shortcut, &state.shortcut_operations, operation)
-}
+impl AppState {
+    /// Best-effort restore; if the mutex is poisoned the manager is
+    /// abandoned, but that state already implies an unrecoverable panic.
+    fn restore_shortcut_manager(&self, manager: ShortcutManager) {
+        if let Ok(mut runtime) = self.shortcut.lock() {
+            runtime.status = manager.status();
+            runtime.manager = Some(manager);
+        }
+    }
 
-/// Constructs, configures, and installs a missing manager as one serialized
-/// operation. Construction and configuration run without the `shortcut` lock,
-/// because the Wayland helper publishes status through that same mutex.
-pub(crate) fn initialize_shortcut_manager(
-    state: &AppState,
-    backend: crate::shortcut::BackendKind,
-    construct: impl FnOnce() -> Result<ShortcutManager, String>,
-    configure: impl FnOnce(&mut ShortcutManager) -> Result<(), String>,
-) -> Result<ShortcutBackendStatus, String> {
-    let _operation = state
-        .shortcut_operations
-        .lock()
-        .map_err(|_| "shortcut operation lock poisoned")?;
-    initialize_shortcut_manager_locked(state, backend, construct, configure)
-}
+    /// Runs `operation` against the live [`ShortcutManager`] while guaranteeing
+    /// that neither `set_shared_status` (called by Wayland helper methods) nor the
+    /// protocol reader thread can deadlock on the shortcut lock.
+    ///
+    /// # Design
+    ///
+    /// The manager is **taken** out of [`ShortcutRuntime`] under `shortcut` lock,
+    /// after which the lock is dropped.  The operation then runs free of the
+    /// `shortcut` mutex — so any internal status publication
+    /// (`set_shared_status`) or channel wait (`wait_for`) cannot cause a
+    /// self-deadlock or circular wait with the reader thread.
+    ///
+    /// A [`ManagerGuard`] restores the manager and refreshes the cached status on
+    /// drop (including on panic/early-return), so readers always see a consistent
+    /// runtime.
+    ///
+    /// `shortcut_operations` is still acquired first as a serialization primitive,
+    /// ensuring a second caller cannot observe the temporarily empty manager slot.
+    pub(crate) fn with_shortcut_manager<T>(
+        &self,
+        operation: impl FnOnce(&mut ShortcutManager) -> T,
+    ) -> Result<T, String> {
+        self.with_extracted_shortcut_manager(operation)
+    }
 
-fn initialize_shortcut_manager_locked(
-    state: &AppState,
-    backend: crate::shortcut::BackendKind,
-    construct: impl FnOnce() -> Result<ShortcutManager, String>,
-    configure: impl FnOnce(&mut ShortcutManager) -> Result<(), String>,
-) -> Result<ShortcutBackendStatus, String> {
-    let (status_revision_before_construct, status_before_construct) = {
-        let runtime = state
-            .shortcut
+    /// Constructs, configures, and installs a missing manager as one serialized
+    /// operation. Construction and configuration run without the `shortcut` lock,
+    /// because the Wayland helper publishes status through that same mutex.
+    pub(crate) fn initialize_shortcut_manager(
+        &self,
+        backend: crate::shortcut::BackendKind,
+        construct: impl FnOnce() -> Result<ShortcutManager, String>,
+        configure: impl FnOnce(&mut ShortcutManager) -> Result<(), String>,
+    ) -> Result<ShortcutBackendStatus, String> {
+        let _operation = self
+            .shortcut_operations
             .lock()
-            .map_err(|_| "shortcut lock poisoned")?;
-        if runtime.manager.is_some() {
-            return Ok(runtime.status.clone());
-        }
-        if state.shortcut_stopping.load(Ordering::Acquire) {
-            return Err("shortcut backend is shutting down".to_owned());
-        }
-        (runtime.status_revision, runtime.status.clone())
-    };
+            .map_err(|_| "shortcut operation lock poisoned")?;
+        self.initialize_shortcut_manager_locked(backend, construct, configure)
+    }
 
-    let mut manager = match construct() {
-        Ok(manager) => manager,
-        Err(error) => {
-            let shortcut = &state.shortcut;
-            let mut runtime = shortcut.lock().map_err(|_| "shortcut lock poisoned")?;
-            if state.shortcut_stopping.load(Ordering::Acquire) {
+    fn initialize_shortcut_manager_locked(
+        &self,
+        backend: crate::shortcut::BackendKind,
+        construct: impl FnOnce() -> Result<ShortcutManager, String>,
+        configure: impl FnOnce(&mut ShortcutManager) -> Result<(), String>,
+    ) -> Result<ShortcutBackendStatus, String> {
+        let (status_revision_before_construct, status_before_construct) = {
+            let runtime = self
+                .shortcut
+                .lock()
+                .map_err(|_| "shortcut lock poisoned")?;
+            if runtime.manager.is_some() {
+                return Ok(runtime.status.clone());
+            }
+            if self.shortcut_stopping.load(Ordering::Acquire) {
                 return Err("shortcut backend is shutting down".to_owned());
             }
-            let actionable_status_was_published = runtime.status_revision
-                != status_revision_before_construct
-                && runtime.status != status_before_construct
-                && matches!(
-                    &runtime.status,
-                    ShortcutBackendStatus::PermissionDenied { .. }
-                        | ShortcutBackendStatus::DevicesUnavailable { .. }
-                );
-            if !actionable_status_was_published {
-                runtime.status = ShortcutBackendStatus::Failed {
+            (runtime.status_revision, runtime.status.clone())
+        };
+
+        let mut manager = match construct() {
+            Ok(manager) => manager,
+            Err(error) => {
+                let mut runtime = self
+                    .shortcut
+                    .lock()
+                    .map_err(|_| "shortcut lock poisoned")?;
+                if self.shortcut_stopping.load(Ordering::Acquire) {
+                    return Err("shortcut backend is shutting down".to_owned());
+                }
+                let actionable_status_was_published = runtime.status_revision
+                    != status_revision_before_construct
+                    && runtime.status != status_before_construct
+                    && matches!(
+                        &runtime.status,
+                        ShortcutBackendStatus::PermissionDenied { .. }
+                            | ShortcutBackendStatus::DevicesUnavailable { .. }
+                    );
+                if !actionable_status_was_published {
+                    runtime.status = ShortcutBackendStatus::Failed {
+                        backend,
+                        detail: error.clone(),
+                    };
+                }
+                drop(runtime);
+                return Err(error);
+            }
+        };
+
+        if let Err(error) = configure(&mut manager) {
+            let manager_status = manager.status();
+            let mut runtime = self
+                .shortcut
+                .lock()
+                .map_err(|_| "shortcut lock poisoned")?;
+            if self.shortcut_stopping.load(Ordering::Acquire) {
+                manager.invalidate();
+                return Err("shortcut backend is shutting down".to_owned());
+            }
+            runtime.status = match manager_status {
+                status @ (ShortcutBackendStatus::PermissionDenied { .. }
+                | ShortcutBackendStatus::DevicesUnavailable { .. }) => status,
+                _ => ShortcutBackendStatus::Failed {
                     backend,
                     detail: error.clone(),
-                };
-            }
+                },
+            };
             drop(runtime);
             return Err(error);
         }
-    };
 
-    if let Err(error) = configure(&mut manager) {
         let manager_status = manager.status();
-        let shortcut = &state.shortcut;
-        let mut runtime = shortcut.lock().map_err(|_| "shortcut lock poisoned")?;
-        if state.shortcut_stopping.load(Ordering::Acquire) {
+        let mut runtime = self
+            .shortcut
+            .lock()
+            .map_err(|_| "shortcut lock poisoned")?;
+        if self.shortcut_stopping.load(Ordering::Acquire) {
             manager.invalidate();
+            runtime.status = ShortcutBackendStatus::ShuttingDown;
+            drop(runtime);
             return Err("shortcut backend is shutting down".to_owned());
         }
-        runtime.status = match manager_status {
-            status @ (ShortcutBackendStatus::PermissionDenied { .. }
-            | ShortcutBackendStatus::DevicesUnavailable { .. }) => status,
-            _ => ShortcutBackendStatus::Failed {
-                backend,
-                detail: error.clone(),
-            },
+        let status_was_newly_published =
+            runtime.status_revision != status_revision_before_construct
+                && runtime.status != status_before_construct;
+        let status = if status_was_newly_published
+            && matches!(
+                &runtime.status,
+                ShortcutBackendStatus::PermissionDenied { .. }
+                    | ShortcutBackendStatus::DevicesUnavailable { .. }
+                    | ShortcutBackendStatus::Failed { .. }
+            ) {
+            runtime.status.clone()
+        } else {
+            manager_status
         };
+        // The operations lock makes this assignment atomic with the absence check.
+        runtime.manager = Some(manager);
+        runtime.status = status.clone();
         drop(runtime);
-        return Err(error);
+        Ok(status)
     }
 
-    let manager_status = manager.status();
-    let shortcut = &state.shortcut;
-    let mut runtime = shortcut.lock().map_err(|_| "shortcut lock poisoned")?;
-    if state.shortcut_stopping.load(Ordering::Acquire) {
-        manager.invalidate();
-        runtime.status = ShortcutBackendStatus::ShuttingDown;
+    /// Under one operation lock, retries an installed manager or initializes the
+    /// missing Wayland manager. Callers never infer absence while another operation
+    /// has temporarily extracted the manager.
+    pub(crate) fn retry_or_initialize_shortcut_manager(
+        &self,
+        backend: crate::shortcut::BackendKind,
+        retry: impl FnOnce(&mut ShortcutManager) -> Result<(), String>,
+        construct: impl FnOnce() -> Result<ShortcutManager, String>,
+        configure: impl FnOnce(&mut ShortcutManager) -> Result<(), String>,
+    ) -> Result<ShortcutBackendStatus, String> {
+        let _operation = self
+            .shortcut_operations
+            .lock()
+            .map_err(|_| "shortcut operation lock poisoned")?;
+        if self.shortcut_stopping.load(Ordering::Acquire) {
+            return Err("shortcut backend is shutting down".to_owned());
+        }
+
+        let manager = self
+            .shortcut
+            .lock()
+            .map_err(|_| "shortcut lock poisoned")?
+            .manager
+            .take();
+        if let Some(manager) = manager {
+            let mut guard = ManagerGuard {
+                state: self,
+                manager: Some(manager),
+            };
+            let result = retry(guard.manager_mut());
+            if self.shortcut_stopping.load(Ordering::Acquire) {
+                // Prevent ManagerGuard::drop from reinstalling this manager.
+                if let Some(manager) = guard.manager.take() {
+                    manager.invalidate();
+                }
+                return Err("shortcut backend is shutting down".to_owned());
+            }
+            result?;
+            return Ok(guard.manager_mut().status());
+        }
+
+        self.initialize_shortcut_manager_locked(backend, construct, configure)
+    }
+
+    /// Marks shutdown immediately, then serializes extraction and shutdown of an
+    /// installed manager. It is intended to run on a worker so an in-flight helper
+    /// handshake never blocks the event loop.
+    pub(crate) fn shutdown_shortcut_manager(
+        &self,
+        shutdown: impl FnOnce(&mut ShortcutManager) -> Result<(), String>,
+    ) -> Result<(), String> {
+        self.begin_shortcut_shutdown();
+        let _operation = self
+            .shortcut_operations
+            .lock()
+            .map_err(|_| "shortcut operation lock poisoned")?;
+        let manager = self
+            .shortcut
+            .lock()
+            .map_err(|_| "shortcut lock poisoned")?
+            .manager
+            .take();
+        if let Some(mut manager) = manager {
+            manager.invalidate();
+            shutdown(&mut manager)?;
+        }
+        Ok(())
+    }
+
+    fn with_extracted_shortcut_manager<T>(
+        &self,
+        operation: impl FnOnce(&mut ShortcutManager) -> T,
+    ) -> Result<T, String> {
+        let _operation = self
+            .shortcut_operations
+            .lock()
+            .map_err(|_| "shortcut operation lock poisoned")?;
+        let mut runtime = self.shortcut.lock().map_err(|_| "shortcut lock poisoned")?;
+        let manager = runtime
+            .manager
+            .take()
+            .ok_or("shortcut manager is not initialized")?;
         drop(runtime);
-        return Err("shortcut backend is shutting down".to_owned());
-    }
-    let status_was_newly_published = runtime.status_revision != status_revision_before_construct
-        && runtime.status != status_before_construct;
-    let status = if status_was_newly_published
-        && matches!(
-            &runtime.status,
-            ShortcutBackendStatus::PermissionDenied { .. }
-                | ShortcutBackendStatus::DevicesUnavailable { .. }
-                | ShortcutBackendStatus::Failed { .. }
-        ) {
-        runtime.status.clone()
-    } else {
-        manager_status
-    };
-    // The operations lock makes this assignment atomic with the absence check.
-    runtime.manager = Some(manager);
-    runtime.status = status.clone();
-    drop(runtime);
-    Ok(status)
-}
-
-/// Under one operation lock, retries an installed manager or initializes the
-/// missing Wayland manager. Callers never infer absence while another operation
-/// has temporarily extracted the manager.
-pub(crate) fn retry_or_initialize_shortcut_manager(
-    state: &AppState,
-    backend: crate::shortcut::BackendKind,
-    retry: impl FnOnce(&mut ShortcutManager) -> Result<(), String>,
-    construct: impl FnOnce() -> Result<ShortcutManager, String>,
-    configure: impl FnOnce(&mut ShortcutManager) -> Result<(), String>,
-) -> Result<ShortcutBackendStatus, String> {
-    let _operation = state
-        .shortcut_operations
-        .lock()
-        .map_err(|_| "shortcut operation lock poisoned")?;
-    if state.shortcut_stopping.load(Ordering::Acquire) {
-        return Err("shortcut backend is shutting down".to_owned());
-    }
-
-    let manager = state
-        .shortcut
-        .lock()
-        .map_err(|_| "shortcut lock poisoned")?
-        .manager
-        .take();
-    if let Some(manager) = manager {
+        // The operation runs without holding `shortcut`.
         let mut guard = ManagerGuard {
-            shortcut: &state.shortcut,
+            state: self,
             manager: Some(manager),
         };
-        let result = retry(guard.manager_mut());
-        if state.shortcut_stopping.load(Ordering::Acquire) {
-            // Prevent ManagerGuard::drop from reinstalling this manager.
-            if let Some(manager) = guard.manager.take() {
-                manager.invalidate();
-            }
-            return Err("shortcut backend is shutting down".to_owned());
-        }
-        result?;
-        return Ok(guard.manager_mut().status());
+        let result = operation(guard.manager_mut());
+        // ManagerGuard::drop restores the manager and updates the cached status.
+        Ok(result)
     }
-
-    initialize_shortcut_manager_locked(state, backend, construct, configure)
 }
 
-/// Marks shutdown immediately, then serializes extraction and shutdown of an
-/// installed manager. It is intended to run on a worker so an in-flight helper
-/// handshake never blocks the event loop.
-pub(crate) fn shutdown_shortcut_manager(
-    state: &AppState,
-    shutdown: impl FnOnce(&mut ShortcutManager) -> Result<(), String>,
-) -> Result<(), String> {
-    state.shortcut_stopping.store(true, Ordering::Release);
-    let _operation = state
-        .shortcut_operations
-        .lock()
-        .map_err(|_| "shortcut operation lock poisoned")?;
-    let manager = state
-        .shortcut
-        .lock()
-        .map_err(|_| "shortcut lock poisoned")?
-        .manager
-        .take();
-    if let Some(mut manager) = manager {
-        manager.invalidate();
-        shutdown(&mut manager)?;
-    }
-    Ok(())
-}
-
-fn with_extracted_shortcut_manager<T>(
-    shortcut: &Mutex<ShortcutRuntime>,
-    shortcut_operations: &Mutex<()>,
-    operation: impl FnOnce(&mut ShortcutManager) -> T,
-) -> Result<T, String> {
-    let _operation = shortcut_operations
-        .lock()
-        .map_err(|_| "shortcut operation lock poisoned")?;
-    let mut runtime = shortcut.lock().map_err(|_| "shortcut lock poisoned")?;
-    let manager = runtime
-        .manager
-        .take()
-        .ok_or("shortcut manager is not initialized")?;
-    drop(runtime);
-    // The operation runs without holding `shortcut`.
-    let mut guard = ManagerGuard {
-        shortcut,
-        manager: Some(manager),
-    };
-    let result = operation(guard.manager_mut());
-    // ManagerGuard::drop restores the manager and updates the cached status.
-    Ok(result)
-}
-
-pub(crate) fn set_shortcut_status(app: &AppHandle, status: ShortcutBackendStatus) {
-    let state = app.state::<AppState>();
-    let stopping = state.shortcut_stopping.load(Ordering::Acquire);
-    if stopping && !matches!(status, ShortcutBackendStatus::ShuttingDown) {
-        return;
-    }
-    if let Ok(mut shortcut) = state.shortcut.lock() {
-        // Redundant check under lock to avoid racing the transition to ShuttingDown
-        if state.shortcut_stopping.load(Ordering::Acquire)
-            && !matches!(status, ShortcutBackendStatus::ShuttingDown)
-        {
+impl AppState {
+    pub(crate) fn set_shortcut_status(&self, app: &AppHandle, status: ShortcutBackendStatus) {
+        let stopping = self.shortcut_stopping.load(Ordering::Acquire);
+        if stopping && !matches!(status, ShortcutBackendStatus::ShuttingDown) {
             return;
         }
-        shortcut.status = status.clone();
-        shortcut.status_revision = shortcut.status_revision.wrapping_add(1);
+        if let Ok(mut shortcut) = self.shortcut.lock() {
+            // Redundant check under lock to avoid racing the transition to ShuttingDown
+            if self.shortcut_stopping.load(Ordering::Acquire)
+                && !matches!(status, ShortcutBackendStatus::ShuttingDown)
+            {
+                return;
+            }
+            shortcut.status = status.clone();
+            shortcut.status_revision = shortcut.status_revision.wrapping_add(1);
+        }
+        let _ = app.emit("charon://shortcut-status", status);
     }
-    let _ = app.emit("charon://shortcut-status", status);
+
+    /// Publishes a shortcut status into the shared state and emits it verbatim,
+    /// without the shutdown suppression of [`AppState::set_shortcut_status`].
+    pub(crate) fn publish_shortcut_status_raw(
+        &self,
+        app: &AppHandle,
+        status: ShortcutBackendStatus,
+    ) {
+        if let Ok(mut shortcut) = self.shortcut.lock() {
+            shortcut.status = status.clone();
+            shortcut.status_revision = shortcut.status_revision.wrapping_add(1);
+        }
+        let _ = app.emit("charon://shortcut-status", status);
+    }
 }
 
 #[cfg(test)]
@@ -917,54 +1149,58 @@ mod tests {
         assert_eq!(status.lock().unwrap().revision, revision + 1);
     }
 
-    fn shortcut_runtime() -> Mutex<ShortcutRuntime> {
-        Mutex::new(ShortcutRuntime {
-            manager: Some(ShortcutManager::native()),
-            status: ShortcutBackendStatus::Starting {
-                backend: crate::shortcut::BackendKind::Native,
-            },
-            status_revision: 0,
-        })
+    fn installed_manager_state() -> AppState {
+        let state = test_state();
+        state
+            .initialize_shortcut_manager(
+                crate::shortcut::BackendKind::Native,
+                || Ok(ShortcutManager::native()),
+                |_| Ok(()),
+            )
+            .expect("initialization should succeed");
+        state
     }
 
     #[test]
     fn manager_operation_releases_shortcut_lock_and_restores_manager_on_ok() {
-        let shortcut = shortcut_runtime();
-        let operations = Mutex::new(());
+        let state = installed_manager_state();
 
-        let result = with_extracted_shortcut_manager(&shortcut, &operations, |_| {
-            // Models WaylandSupervisor::set_status publishing into AppState
-            // while replace/retry owns the extracted manager.
-            let mut runtime = shortcut
-                .try_lock()
-                .expect("operation must not hold shortcut lock");
-            runtime.status = ShortcutBackendStatus::Restarting {
-                backend: crate::shortcut::BackendKind::Native,
-            };
-            drop(runtime);
-            Ok::<_, &'static str>(())
-        })
-        .expect("state operation should run");
+        let result = state
+            .with_shortcut_manager(|_| {
+                // Models WaylandSupervisor::set_status publishing into AppState
+                // while replace/retry owns the extracted manager.
+                let mut runtime = state
+                    .shortcut
+                    .try_lock()
+                    .expect("operation must not hold shortcut lock");
+                runtime.status = ShortcutBackendStatus::Restarting {
+                    backend: crate::shortcut::BackendKind::Native,
+                };
+                drop(runtime);
+                Ok::<_, &'static str>(())
+            })
+            .expect("state operation should run");
 
         assert_eq!(result, Ok(()));
-        assert!(shortcut.lock().unwrap().manager.is_some());
+        assert!(state.shortcut.lock().unwrap().manager.is_some());
     }
 
     #[test]
     fn manager_operation_releases_shortcut_lock_and_restores_manager_on_err() {
-        let shortcut = shortcut_runtime();
-        let operations = Mutex::new(());
+        let state = installed_manager_state();
 
-        let result = with_extracted_shortcut_manager(&shortcut, &operations, |_| {
-            let _runtime = shortcut
-                .try_lock()
-                .expect("operation must not hold shortcut lock");
-            Err::<(), _>("operation failed")
-        })
-        .expect("state operation should run");
+        let result = state
+            .with_shortcut_manager(|_| {
+                let _runtime = state
+                    .shortcut
+                    .try_lock()
+                    .expect("operation must not hold shortcut lock");
+                Err::<(), _>("operation failed")
+            })
+            .expect("state operation should run");
 
         assert_eq!(result, Err("operation failed"));
-        assert!(shortcut.lock().unwrap().manager.is_some());
+        assert!(state.shortcut.lock().unwrap().manager.is_some());
     }
 
     fn test_state() -> AppState {
@@ -1069,8 +1305,7 @@ mod tests {
     #[test]
     fn initialize_succeeds_and_installs_manager() {
         let state = test_state();
-        let status = initialize_shortcut_manager(
-            &state,
+        let status = state.initialize_shortcut_manager(
             crate::shortcut::BackendKind::Native,
             || Ok(ShortcutManager::native()),
             |_| Ok(()),
@@ -1088,8 +1323,7 @@ mod tests {
     #[test]
     fn initialize_construction_failure_leaves_manager_absent() {
         let state = test_state();
-        let result = initialize_shortcut_manager(
-            &state,
+        let result = state.initialize_shortcut_manager(
             crate::shortcut::BackendKind::WaylandHelper,
             || Err("spawn failed".to_owned()),
             |_| unreachable!("configure should not run"),
@@ -1110,15 +1344,13 @@ mod tests {
     #[test]
     fn initialize_is_idempotent_when_manager_is_installed() {
         let state = test_state();
-        initialize_shortcut_manager(
-            &state,
+        state.initialize_shortcut_manager(
             crate::shortcut::BackendKind::Native,
             || Ok(ShortcutManager::native()),
             |_| Ok(()),
         )
         .expect("initialization should succeed");
-        let result = initialize_shortcut_manager(
-            &state,
+        let result = state.initialize_shortcut_manager(
             crate::shortcut::BackendKind::WaylandHelper,
             || panic!("second construction must not run"),
             |_| panic!("second configuration must not run"),
@@ -1135,8 +1367,7 @@ mod tests {
     fn initialize_aborts_before_construction_after_shutdown() {
         let state = test_state();
         state.shortcut_stopping.store(true, Ordering::Release);
-        let result = initialize_shortcut_manager(
-            &state,
+        let result = state.initialize_shortcut_manager(
             crate::shortcut::BackendKind::WaylandHelper,
             || panic!("construction must not run after shutdown"),
             |_| unreachable!(),
@@ -1148,8 +1379,7 @@ mod tests {
     #[test]
     fn initialize_does_not_install_when_shutdown_starts_during_construction() {
         let state = test_state();
-        let result = initialize_shortcut_manager(
-            &state,
+        let result = state.initialize_shortcut_manager(
             crate::shortcut::BackendKind::Native,
             || {
                 state.shortcut_stopping.store(true, Ordering::Release);
@@ -1167,8 +1397,7 @@ mod tests {
     #[test]
     fn initialization_does_not_hold_shortcut_lock() {
         let state = test_state();
-        initialize_shortcut_manager(
-            &state,
+        state.initialize_shortcut_manager(
             crate::shortcut::BackendKind::Native,
             || {
                 let runtime = state
@@ -1197,15 +1426,13 @@ mod tests {
     #[test]
     fn retry_or_initialize_retries_installed_manager_without_construction() {
         let state = test_state();
-        initialize_shortcut_manager(
-            &state,
+        state.initialize_shortcut_manager(
             crate::shortcut::BackendKind::Native,
             || Ok(ShortcutManager::native()),
             |_| Ok(()),
         )
         .expect("initialization should succeed");
-        let status = retry_or_initialize_shortcut_manager(
-            &state,
+        let status = state.retry_or_initialize_shortcut_manager(
             crate::shortcut::BackendKind::Native,
             |_| Ok(()),
             || panic!("retry with installed manager must not construct"),
@@ -1224,8 +1451,7 @@ mod tests {
     #[test]
     fn retry_or_initialize_constructs_missing_manager() {
         let state = test_state();
-        let status = retry_or_initialize_shortcut_manager(
-            &state,
+        let status = state.retry_or_initialize_shortcut_manager(
             crate::shortcut::BackendKind::Native,
             |_| unreachable!("missing manager must not use existing retry"),
             || Ok(ShortcutManager::native()),
@@ -1244,7 +1470,7 @@ mod tests {
     #[test]
     fn shutdown_without_manager_is_benign() {
         let state = test_state();
-        let result = shutdown_shortcut_manager(&state, |_| panic!("no manager to shut down"));
+        let result = state.shutdown_shortcut_manager( |_| panic!("no manager to shut down"));
         assert_eq!(result, Ok(()));
         assert!(state.shortcut_stopping.load(Ordering::Acquire));
         assert!(state.shortcut.lock().unwrap().manager.is_none());
@@ -1260,8 +1486,7 @@ mod tests {
                 setup_available: true,
             };
         }
-        let status = initialize_shortcut_manager(
-            &state,
+        let status = state.initialize_shortcut_manager(
             crate::shortcut::BackendKind::Native,
             || Ok(ShortcutManager::native()),
             |_| Ok(()),
@@ -1289,15 +1514,13 @@ mod tests {
     #[test]
     fn retry_does_not_reinstall_manager_after_shutdown_begins() {
         let state = test_state();
-        initialize_shortcut_manager(
-            &state,
+        state.initialize_shortcut_manager(
             crate::shortcut::BackendKind::Native,
             || Ok(ShortcutManager::native()),
             |_| Ok(()),
         )
         .expect("initialization should succeed");
-        let result = retry_or_initialize_shortcut_manager(
-            &state,
+        let result = state.retry_or_initialize_shortcut_manager(
             crate::shortcut::BackendKind::Native,
             |_| {
                 state.shortcut_stopping.store(true, Ordering::Release);
@@ -1310,3 +1533,420 @@ mod tests {
         assert!(state.shortcut.lock().unwrap().manager.is_none());
     }
 }
+
+#[cfg(test)]
+mod settings_transaction_tests {
+    use super::*;
+
+    fn correction(url: Option<&str>) -> settings::CorrectionSettings {
+        settings::CorrectionSettings {
+            llm_server_url: url.map(str::to_owned),
+            llm_model: Some("model".into()),
+            llm_api_key: Some("secret".into()),
+            llm_prompt: Some("prompt".into()),
+        }
+    }
+
+    fn runtime(settings: Settings) -> SettingsRuntime {
+        SettingsRuntime {
+            registered_hotkey: settings.hotkey.clone(),
+            settings,
+        }
+    }
+
+    fn general_fixture() -> (SettingsRuntime, Settings) {
+        let original = Settings {
+            hotkey: "Control+Shift+Space".into(),
+            llm_prompt: Some("authoritative correction".into()),
+            llm_api_key: Some("authoritative key".into()),
+            ..Settings::default()
+        };
+        (runtime(original.clone()), original)
+    }
+
+    fn general_candidate(old: &Settings, hotkey: &str) -> Settings {
+        Settings {
+            hotkey: hotkey.into(),
+            llm_prompt: Some("stale correction snapshot".into()),
+            llm_api_key: Some("stale key".into()),
+            input_device: Some("mic".into()),
+            ..old.clone()
+        }
+    }
+
+    fn active_status(chord: &ShortcutChord) -> ShortcutBackendStatus {
+        ShortcutBackendStatus::Active {
+            backend: BackendKind::Native,
+            shortcut: chord.to_string(),
+            device_count: None,
+        }
+    }
+
+    #[test]
+    fn external_transaction_callbacks_run_without_state_mutexes() {
+        let (initial, original) = general_fixture();
+        let settings = std::sync::Mutex::new(initial);
+        let shortcut = std::sync::Mutex::new(active_status(&original.hotkey.parse().unwrap()));
+        let assert_unlocked = || {
+            assert!(settings.try_lock().is_ok(), "settings mutex held");
+            assert!(shortcut.try_lock().is_ok(), "shortcut mutex held");
+        };
+        let mut published = Vec::new();
+        let error = update_general_settings_with(
+            &settings,
+            general_candidate(&original, "Control+Shift+KeyQ"),
+            &original.hotkey,
+            BackendKind::Native,
+            |chord| {
+                assert_unlocked();
+                Ok((Ok(()), active_status(&chord)))
+            },
+            |status| {
+                assert_unlocked();
+                published.push(status);
+            },
+            |_| {
+                assert_unlocked();
+                Err("disk failed".into())
+            },
+            || {
+                assert_unlocked();
+                Ok(ShortcutBackendStatus::Failed {
+                    backend: BackendKind::Native,
+                    detail: "latest status".into(),
+                })
+            },
+        );
+        assert_eq!(error.unwrap_err(), "disk failed");
+        assert_eq!(published.len(), 2);
+        assert!(
+            matches!(published[1], ShortcutBackendStatus::Failed { ref detail, .. } if detail == "latest status")
+        );
+        assert_eq!(settings.lock().unwrap().settings, original);
+    }
+
+    #[test]
+    fn general_invalid_does_not_invoke_external_operations() {
+        let (state, original) = general_fixture();
+        let state = std::sync::Mutex::new(state);
+        let calls = std::cell::Cell::new(0);
+        assert!(update_general_settings_with(
+            &state,
+            general_candidate(&original, "not a chord"),
+            &original.hotkey,
+            BackendKind::Native,
+            |_| {
+                calls.set(calls.get() + 1);
+                unreachable!()
+            },
+            |_| {
+                calls.set(calls.get() + 1);
+            },
+            |_| {
+                calls.set(calls.get() + 1);
+                Ok(())
+            },
+            || {
+                calls.set(calls.get() + 1);
+                unreachable!()
+            },
+        )
+        .is_err());
+        assert_eq!(calls.get(), 0);
+        assert_eq!(state.lock().unwrap().settings, original);
+    }
+
+    #[test]
+    fn unchanged_settings_preserve_existing_processing_and_skip_hotkey_replacement() {
+        let (initial, original) = general_fixture();
+        let state = std::sync::Mutex::new(initial);
+        let replaces = std::cell::Cell::new(0);
+        update_general_settings_with(
+            &state,
+            general_candidate(&original, &original.hotkey),
+            &original.hotkey,
+            BackendKind::Native,
+            |_| {
+                replaces.set(replaces.get() + 1);
+                unreachable!()
+            },
+            |_| {},
+            |_| Ok(()),
+            || unreachable!(),
+        )
+        .unwrap();
+        assert_eq!(replaces.get(), 0);
+        assert_eq!(state.lock().unwrap().settings.hotkey, original.hotkey);
+    }
+
+    #[test]
+    fn general_unchanged_skips_shortcut_replacement() {
+        let (initial, original) = general_fixture();
+        let state = std::sync::Mutex::new(initial);
+        let saves = std::cell::Cell::new(0);
+        let replaces = std::cell::Cell::new(0);
+        update_general_settings_with(
+            &state,
+            general_candidate(&original, &original.hotkey),
+            &original.hotkey,
+            BackendKind::Native,
+            |_| {
+                replaces.set(replaces.get() + 1);
+                unreachable!()
+            },
+            |_| {},
+            |next| {
+                saves.set(saves.get() + 1);
+                assert_eq!(next.llm_prompt, original.llm_prompt);
+                Ok(())
+            },
+            || unreachable!(),
+        )
+        .unwrap();
+        assert_eq!(replaces.get(), 0);
+        assert_eq!(saves.get(), 1);
+    }
+
+    #[test]
+    fn general_success_replaces_publishes_saves_and_commits() {
+        let (state, original) = general_fixture();
+        let state = std::sync::Mutex::new(state);
+        let calls = std::cell::RefCell::new(Vec::new());
+        let next = general_candidate(&original, "Control+Shift+KeyA");
+        let expected = next.hotkey.parse::<ShortcutChord>().unwrap();
+        let returned = update_general_settings_with(
+            &state,
+            next,
+            &original.hotkey,
+            BackendKind::Native,
+            |chord| {
+                calls.borrow_mut().push("replace");
+                assert_eq!(chord, expected.clone());
+                Ok((Ok(()), active_status(&chord)))
+            },
+            |_| calls.borrow_mut().push("publish"),
+            |saved| {
+                calls.borrow_mut().push("save");
+                assert_eq!(saved.llm_prompt, original.llm_prompt);
+                assert_eq!(saved.llm_api_key, original.llm_api_key);
+                Ok(())
+            },
+            || {
+                calls.borrow_mut().push("status");
+                Ok(active_status(&expected))
+            },
+        )
+        .unwrap();
+        assert_eq!(*calls.borrow(), ["replace", "publish", "save"]);
+        let committed = state.lock().unwrap();
+        assert_eq!(committed.settings, returned);
+        assert_eq!(committed.registered_hotkey, returned.hotkey);
+        drop(committed);
+        assert_eq!(returned.input_device.as_deref(), Some("mic"));
+    }
+
+    #[test]
+    fn general_registration_failure_does_not_save_or_commit() {
+        let (state, original) = general_fixture();
+        let state = std::sync::Mutex::new(state);
+        let saves = std::cell::Cell::new(0);
+        let publishes = std::cell::Cell::new(0);
+        let error = update_general_settings_with(
+            &state,
+            general_candidate(&original, "Control+Shift+KeyA"),
+            &original.hotkey,
+            BackendKind::Native,
+            |chord| Ok((Err("register".into()), active_status(&chord))),
+            |_| publishes.set(publishes.get() + 1),
+            |_| {
+                saves.set(saves.get() + 1);
+                Ok(())
+            },
+            || unreachable!(),
+        )
+        .unwrap_err();
+        assert_eq!(error, "register");
+        assert_eq!(publishes.get(), 1);
+        assert_eq!(saves.get(), 0);
+        assert_eq!(state.lock().unwrap().settings, original);
+        assert_eq!(state.lock().unwrap().registered_hotkey, original.hotkey);
+    }
+
+    #[test]
+    fn general_save_failure_rolls_back_and_preserves_runtime() {
+        let (state, original) = general_fixture();
+        let state = std::sync::Mutex::new(state);
+        let calls = std::cell::RefCell::new(Vec::new());
+        let next = general_candidate(&original, "Control+Shift+KeyA");
+        let mut published = Vec::new();
+        let returned = update_general_settings_with(
+            &state,
+            next,
+            &original.hotkey,
+            BackendKind::Native,
+            |chord| {
+                calls.borrow_mut().push("replace");
+                Ok((Ok(()), active_status(&chord)))
+            },
+            |status| {
+                calls.borrow_mut().push("publish");
+                published.push(status);
+            },
+            |_| {
+                calls.borrow_mut().push("save");
+                Err("disk".into())
+            },
+            || {
+                calls.borrow_mut().push("status");
+                Ok(ShortcutBackendStatus::Failed {
+                    backend: BackendKind::Native,
+                    detail: "latest status".into(),
+                })
+            },
+        )
+        .unwrap_err();
+        assert_eq!(returned, "disk");
+        assert_eq!(
+            *calls.borrow(),
+            ["replace", "publish", "save", "replace", "status", "publish"]
+        );
+        assert!(
+            matches!(published.last(), Some(ShortcutBackendStatus::Failed { detail, .. }) if detail == "latest status")
+        );
+        assert_eq!(state.lock().unwrap().settings, original);
+        assert_eq!(state.lock().unwrap().registered_hotkey, original.hotkey);
+    }
+
+    #[test]
+    fn general_rollback_failure_reports_combined_error_and_failed_status() {
+        let (state, original) = general_fixture();
+        let state = std::sync::Mutex::new(state);
+        let calls = std::cell::RefCell::new(Vec::new());
+        let error = update_general_settings_with(
+            &state,
+            general_candidate(&original, "Control+Shift+KeyA"),
+            &original.hotkey,
+            BackendKind::Native,
+            |_| {
+                let mut calls = calls.borrow_mut();
+                calls.push("replace");
+                if calls.len() == 1 {
+                    Ok((
+                        Ok(()),
+                        active_status(&"Control+Shift+KeyA".parse().unwrap()),
+                    ))
+                } else {
+                    Ok((
+                        Err("rollback".into()),
+                        active_status(&"Control+Shift+KeyA".parse().unwrap()),
+                    ))
+                }
+            },
+            |status| {
+                calls.borrow_mut().push(
+                    if matches!(status, ShortcutBackendStatus::Failed { .. }) {
+                        "failed"
+                    } else {
+                        "publish"
+                    },
+                );
+            },
+            |_| {
+                calls.borrow_mut().push("save");
+                Err("disk".into())
+            },
+            || unreachable!(),
+        )
+        .unwrap_err();
+        assert_eq!(error, "disk; shortcut rollback failed: rollback");
+        assert_eq!(
+            *calls.borrow(),
+            ["replace", "publish", "save", "replace", "failed"]
+        );
+        assert_eq!(state.lock().unwrap().settings, original);
+    }
+
+    #[test]
+    fn general_manager_acquisition_failure_propagates_before_status_publish() {
+        let (state, original) = general_fixture();
+        let state = std::sync::Mutex::new(state);
+        let publishes = std::cell::Cell::new(0);
+        let result = update_general_settings_with(
+            &state,
+            general_candidate(&original, "Control+Shift+KeyA"),
+            &original.hotkey,
+            BackendKind::Native,
+            |_| Err("manager lock poisoned".into()),
+            |_| publishes.set(publishes.get() + 1),
+            |_| panic!("must not save"),
+            || unreachable!(),
+        );
+        assert_eq!(result.unwrap_err(), "manager lock poisoned");
+        assert_eq!(publishes.get(), 0);
+        assert_eq!(state.lock().unwrap().settings, original);
+    }
+
+    #[test]
+    fn correction_invalid_does_not_save_or_commit() {
+        let original = Settings::default();
+        let mut state = runtime(original.clone());
+        let saves = std::cell::Cell::new(0);
+        assert!(update_correction_settings_with(
+            &mut state,
+            correction(Some("file:///bad")),
+            |_| {
+                saves.set(saves.get() + 1);
+                Ok(())
+            }
+        )
+        .is_err());
+        assert_eq!(saves.get(), 0);
+        assert_eq!(state.settings, original);
+        assert_eq!(state.registered_hotkey, original.hotkey);
+    }
+
+    #[test]
+    fn correction_save_failure_preserves_runtime_and_registered_hotkey() {
+        let original = Settings {
+            llm_prompt: Some("existing".into()),
+            ..Settings::default()
+        };
+        let mut state = runtime(original.clone());
+        let error = update_correction_settings_with(
+            &mut state,
+            correction(Some("https://api.example.test")),
+            |_| Err("disk".into()),
+        );
+        assert_eq!(error.unwrap_err(), "disk");
+        assert_eq!(state.settings, original);
+        assert_eq!(state.registered_hotkey, original.hotkey);
+    }
+
+    #[test]
+    fn correction_success_persists_returns_and_commits_preserving_general_fields() {
+        let original = Settings {
+            input_device: Some("mic".into()),
+            llm_prompt: Some("old".into()),
+            ..Settings::default()
+        };
+        let mut state = runtime(original.clone());
+        let mut persisted = None;
+        let returned = update_correction_settings_with(
+            &mut state,
+            correction(Some("https://api.example.test")),
+            |next| {
+                persisted = Some(next.clone());
+                Ok(())
+            },
+        )
+        .unwrap();
+        assert_eq!(persisted, Some(returned.clone()));
+        assert_eq!(state.settings, returned);
+        assert_eq!(state.registered_hotkey, original.hotkey);
+        assert_eq!(returned.hotkey, original.hotkey);
+        assert_eq!(returned.server_url, original.server_url);
+        assert_eq!(returned.trigger_type, original.trigger_type);
+        assert_eq!(returned.input_device, original.input_device);
+    }
+}
+

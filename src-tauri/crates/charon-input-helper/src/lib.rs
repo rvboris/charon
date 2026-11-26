@@ -34,7 +34,7 @@ pub fn run() -> Result<(), String> {
     let mut output = stdout.lock();
     let mut devices = DeviceLoop::new().map_err(|error| error.to_string())?;
     let mut state = CommandState::new(instance_id());
-    let (initial, initial_events) = devices.rescan(&mut state.matcher);
+    let (initial, initial_events) = state.rescan(&mut devices);
     debug_assert_eq!(initial_events, []);
     report_scan_diagnostic(&initial);
 
@@ -46,7 +46,7 @@ pub fn run() -> Result<(), String> {
             return Ok(());
         }
         let mut pending = Vec::new();
-        if let Err(error) = devices.poll_once(&mut state.matcher, |event| {
+        if let Err(error) = state.poll_once(&mut devices, |event| {
             pending.push(event);
             Ok(())
         }) {
@@ -60,7 +60,7 @@ pub fn run() -> Result<(), String> {
                     retryable: true,
                 },
             )?;
-            let (summary, events) = devices.rescan(&mut state.matcher);
+            let (summary, events) = state.rescan(&mut devices);
             pending.extend(events);
             report_scan_diagnostic(&summary);
         }
@@ -202,6 +202,41 @@ impl CommandState {
         }
     }
 
+    fn rescan(&mut self, devices: &mut DeviceLoop) -> (ScanSummary, Vec<MatchEvent>) {
+        devices.rescan(&mut self.matcher)
+    }
+
+    fn poll_once(
+        &mut self,
+        devices: &mut DeviceLoop,
+        emit: impl FnMut(MatchEvent) -> Result<(), String>,
+    ) -> std::io::Result<()> {
+        devices.poll_once(&mut self.matcher, emit)
+    }
+
+    fn shutdown(&mut self) -> Option<MatchEvent> {
+        self.matcher.shutdown()
+    }
+
+    fn configure_chord(&mut self, generation: u64, chord: ChordSpec) -> Option<MatchEvent> {
+        self.matcher.configure(generation, chord)
+    }
+
+    #[cfg(test)]
+    fn add_device(&mut self, device: charon_shortcut_core::matcher::DeviceId) {
+        self.matcher.add_device(device);
+    }
+
+    #[cfg(test)]
+    fn input(
+        &mut self,
+        device: charon_shortcut_core::matcher::DeviceId,
+        code: charon_shortcut_core::matcher::InputCode,
+        value: charon_shortcut_core::matcher::InputValue,
+    ) {
+        self.matcher.input(device, code, value);
+    }
+
     fn handle<W: Write>(
         &mut self,
         command: ParentCommand,
@@ -241,7 +276,7 @@ impl CommandState {
                 self.configure(id, generation, &chord, devices.device_count(), output)?;
             }
             ParentCommand::Rescan { id } => {
-                let (summary, events) = devices.rescan(&mut self.matcher);
+                let (summary, events) = self.rescan(devices);
                 for event in events {
                     self.emit_event(event, output)?;
                 }
@@ -258,7 +293,7 @@ impl CommandState {
                 )?;
             }
             ParentCommand::Shutdown { id } => {
-                if let Some(event) = self.matcher.shutdown() {
+                if let Some(event) = self.shutdown() {
                     self.emit_event(event, output)?;
                 }
                 emit(output, &HelperMessage::Bye { reply_to: id })?;
@@ -290,7 +325,7 @@ impl CommandState {
                 "[charon-input-helper] configured chord={chord} generation={generation} device_count={device_count}"
             );
         }
-        if let Some(event) = self.matcher.configure(generation, ChordSpec::from(chord)) {
+        if let Some(event) = self.configure_chord(generation, ChordSpec::from(chord)) {
             self.emit_event(event, output)?;
         }
         emit(
@@ -491,15 +526,15 @@ mod tests {
     #[test]
     fn configure_emits_release_before_ack() {
         let mut state = CommandState::new("test".into());
-        state.matcher.add_device(1);
+        state.add_device(1);
         let mut output = Vec::new();
         state.configure(1, 7, "Ctrl+Space", 2, &mut output).unwrap();
-        state.matcher.input(
+        state.input(
             1,
             charon_shortcut_core::matcher::InputCode::CtrlLeft,
             charon_shortcut_core::matcher::InputValue::Down,
         );
-        state.matcher.input(
+        state.input(
             1,
             charon_shortcut_core::matcher::InputCode::Primary(57),
             charon_shortcut_core::matcher::InputValue::Down,

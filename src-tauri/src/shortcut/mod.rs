@@ -5,6 +5,19 @@ mod wayland;
 pub use charon_shortcut_core::chord::{ShortcutChord, ShortcutError};
 pub use native::NativeShortcutBackend;
 
+/// Normalized shortcut event delivered by a backend to the application.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ShortcutEvent {
+    Pressed,
+    Released,
+}
+
+/// Delivers backend shortcut events into the application.
+pub type EventDispatch = std::sync::Arc<dyn Fn(ShortcutEvent) + Send + Sync>;
+
+/// Publishes backend status into the application.
+pub type StatusSink = std::sync::Arc<dyn Fn(ShortcutBackendStatus) + Send + Sync>;
+
 /// Shortcut implementation selected by the runtime environment.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -95,14 +108,22 @@ impl ShortcutManager {
     }
 
     #[cfg(target_os = "linux")]
-    pub fn wayland(app: tauri::AppHandle) -> Result<Self, ShortcutError> {
-        wayland::WaylandSupervisor::spawn(app)
+    pub fn wayland(
+        _app: tauri::AppHandle,
+        dispatch: EventDispatch,
+        status_sink: StatusSink,
+    ) -> Result<Self, ShortcutError> {
+        wayland::WaylandSupervisor::spawn(dispatch, status_sink)
             .map(Box::new)
             .map(Self::Wayland)
     }
 
     #[cfg(not(target_os = "linux"))]
-    pub fn wayland(_app: tauri::AppHandle) -> Result<Self, ShortcutError> {
+    pub fn wayland(
+        _app: tauri::AppHandle,
+        _dispatch: EventDispatch,
+        _status_sink: StatusSink,
+    ) -> Result<Self, ShortcutError> {
         Err(ShortcutError::Backend(
             "Wayland helper is supported only on Linux".to_owned(),
         ))

@@ -7,7 +7,9 @@
 
 use crate::output;
 use crate::settings::TriggerType;
-use crate::state::{emit_status, emit_status_event, AppState, StatusEvent, StatusKind};
+#[cfg(target_os = "linux")]
+use crate::shortcut::{EventDispatch, ShortcutEvent as BackendShortcutEvent, StatusSink};
+use crate::state::{AppState, StatusEvent, StatusKind};
 use crate::transcription;
 use crate::trigger::Action;
 use serde::Serialize;
@@ -49,7 +51,7 @@ pub fn handle_hotkey_action(app: &AppHandle, event: HotkeyEvent) {
     let Some(app_state) = app.try_state::<AppState>() else {
         return;
     };
-    let Ok(mut processing) = app_state.processing.lock() else {
+    let Some(mut processing) = app_state.processing_guard() else {
         return;
     };
     handle_hotkey_action_locked(app, event, &mut processing, None);
@@ -65,9 +67,9 @@ fn handle_hotkey_action_locked(
         return;
     };
     if let Some(expected) = expected_shortcut {
-        let matches = app_state.settings.lock().is_ok_and(|runtime| {
-            parse_hotkey(&runtime.registered_hotkey).as_ref().ok() == Some(expected)
-        });
+        let matches = app_state
+            .registered_hotkey()
+            .is_ok_and(|hotkey| parse_hotkey(&hotkey).as_ref().ok() == Some(expected));
         if !matches {
             return;
         }
@@ -78,24 +80,17 @@ fn handle_hotkey_action_locked(
     if app_state.is_hotkey_capture_active() {
         return;
     }
-    let trigger_type = match app_state.settings.lock() {
-        Ok(runtime) => runtime.settings.trigger_type,
+    let trigger_type = match app_state.settings_snapshot() {
+        Ok(settings) => settings.trigger_type,
         Err(_) => return,
     };
-    let action = match app_state.trigger.lock() {
-        Ok(mut trigger) => match event {
-            HotkeyEvent::Pressed => trigger.press(trigger_type),
-            HotkeyEvent::Released => trigger.release(trigger_type),
-        },
-        Err(_) => return,
+    let Some(action) = app_state.trigger_event(trigger_type, event == HotkeyEvent::Pressed)
+    else {
+        return;
     };
     match action {
         Action::Start => {
-            if app_state
-                .recording
-                .lock()
-                .is_ok_and(|recording| recording.is_none())
-            {
+            if app_state.recording_is_idle() {
                 if let Some(token) = app_state.begin_recording_start() {
                     check_server_and_start_recording(
                         app,
@@ -118,7 +113,7 @@ pub(crate) fn handle_shortcut(app: &AppHandle, shortcut: &Shortcut, event: Short
         );
     }
     let app_state = app.state::<AppState>();
-    let Ok(mut processing) = app_state.processing.lock() else {
+    let Some(mut processing) = app_state.processing_guard() else {
         return;
     };
     let normalized = match event.state() {
@@ -150,25 +145,22 @@ pub(crate) fn parse_hotkey(value: &str) -> Result<Shortcut, String> {
 
 fn check_server_and_start_recording(app: &AppHandle, auto_vad: bool, token: u64) {
     let state = app.state::<AppState>();
-    let Ok(runtime) = state.settings.lock() else {
+    let Ok(settings) = state.settings_snapshot() else {
         state.finish_recording_start(token);
-        if let Ok(mut trigger) = state.trigger.lock() {
-            trigger.force_idle();
-        }
-        emit_status(
+        state.force_trigger_idle();
+        state.emit_status(
             app,
             StatusKind::Error,
             Some("Не удалось прочитать адрес сервера.".to_owned()),
         );
         return;
     };
-    let server_url = runtime.settings.server_url.clone();
-    drop(runtime);
+    let server_url = settings.server_url;
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         let check = transcription::check_server(&server_url).await;
         let state = app.state::<AppState>();
-        let Ok(processing) = state.processing.lock() else {
+        let Some(processing) = state.processing_guard() else {
             return;
         };
         if !state.recording_start_is_current(token) {
@@ -181,10 +173,8 @@ fn check_server_and_start_recording(app: &AppHandle, auto_vad: bool, token: u64)
             }
             Err(error) => {
                 if state.finish_recording_start(token) {
-                    if let Ok(mut trigger) = state.trigger.lock() {
-                        trigger.force_idle();
-                    }
-                    emit_status(&app, StatusKind::Error, Some(error));
+                    state.force_trigger_idle();
+                    state.emit_status(&app, StatusKind::Error, Some(error));
                 }
             }
         }
@@ -194,25 +184,24 @@ fn check_server_and_start_recording(app: &AppHandle, auto_vad: bool, token: u64)
 fn start_recording(app: &AppHandle, auto_vad: bool, token: u64) {
     let app_for_stop = app.clone();
     let state = app.state::<AppState>();
-    let Ok(processing) = state.processing.lock() else {
+    let Some(processing) = state.processing_guard() else {
         return;
     };
     if *processing || !state.recording_start_is_current(token) {
         return;
     }
     let device_name = state
-        .settings
-        .lock()
+        .settings_snapshot()
         .ok()
-        .and_then(|runtime| runtime.settings.input_device.clone());
-    let result = state.audio.start(
+        .and_then(|settings| settings.input_device);
+    let result = state.start_audio(
         auto_vad,
         device_name,
         Box::new(move || {
             let app = app_for_stop.clone();
             tauri::async_runtime::spawn(async move {
                 let state = app.state::<AppState>();
-                let Ok(mut processing) = state.processing.lock() else {
+                let Some(mut processing) = state.processing_guard() else {
                     return;
                 };
                 if !*processing && state.recording_start_is_current(token.wrapping_add(1)) {
@@ -224,31 +213,17 @@ fn start_recording(app: &AppHandle, auto_vad: bool, token: u64) {
     match result {
         Ok(opened_device_name) if state.finish_recording_start(token) => {
             let started = Instant::now();
-            if let Ok(mut recording) = state.recording.lock() {
-                *recording = Some(started);
-            }
-            emit_status_event(
-                app,
-                StatusEvent {
-                    kind: StatusKind::Recording,
-                    revision: 0,
-                    message: None,
-                    correction_warning: None,
-                    elapsed_seconds: Some(0),
-                },
-            );
+            state.recording_started(app, started);
             spawn_recording_timer(app.clone(), started);
             spawn_audio_level_loop(app.clone(), started, opened_device_name);
         }
         Ok(_) => {
-            let _ = state.audio.stop();
+            let _ = state.stop_audio();
         }
         Err(error) => {
             if state.finish_recording_start(token) {
-                if let Ok(mut trigger) = state.trigger.lock() {
-                    trigger.force_idle();
-                }
-                emit_status(app, StatusKind::Error, Some(error));
+                state.force_trigger_idle();
+                state.emit_status(app, StatusKind::Error, Some(error));
             }
         }
     }
@@ -260,15 +235,15 @@ fn spawn_recording_timer(app: AppHandle, started: Instant) {
         loop {
             tokio::time::sleep(Duration::from_secs(1)).await;
             let state = app.state::<AppState>();
-            let Ok(_processing) = state.processing.lock() else {
+            let Some(_processing) = state.processing_guard() else {
                 break;
             };
-            let current_started = state.recording.lock().map_or(None, |recording| *recording);
+            let current_started = state.current_recording_start();
             if current_started != Some(started) {
                 break;
             }
             elapsed_seconds += 1;
-            emit_status_event(
+            state.emit_status_event(
                 &app,
                 StatusEvent {
                     kind: StatusKind::Recording,
@@ -290,14 +265,11 @@ fn spawn_audio_level_loop(app: AppHandle, started: Instant, device_name: String)
             // Exit as soon as this recording is no longer current: a new
             // recording replaces `started` with a fresh Instant, and stop
             // clears it to None. Either way we must stop polling.
-            let still_current = state
-                .recording
-                .lock()
-                .is_ok_and(|recording| *recording == Some(started));
+            let still_current = state.recording_is_current(started);
             if !still_current {
                 break;
             }
-            let level = state.audio.level();
+            let level = state.audio_level();
             // Send a plain payload directly; deliberately not a StatusEvent so
             // `manage_recording_overlay` (which performs window show/hide/resize)
             // is never triggered by the level heartbeat.
@@ -315,41 +287,32 @@ fn spawn_audio_level_loop(app: AppHandle, started: Instant, device_name: String)
 fn stop_recording_locked(app: &AppHandle, processing: &mut bool) {
     let state = app.state::<AppState>();
     state.cancel_recording_start();
-    let started = state
-        .recording
-        .lock()
-        .ok()
-        .and_then(|mut recording| recording.take());
+    let started = state.take_recording_start();
     if started.is_none() {
         return;
     }
-    if let Ok(mut trigger) = state.trigger.lock() {
-        trigger.force_idle();
-    }
-    let wav = match state.audio.stop() {
+    state.force_trigger_idle();
+    let wav = match state.stop_audio() {
         Ok(wav) => wav,
         Err(error) => {
-            emit_status(app, StatusKind::Error, Some(error));
+            state.emit_status(app, StatusKind::Error, Some(error));
             return;
         }
     };
-    emit_status(app, StatusKind::Transcribing, None);
-    let settings = state
-        .settings
-        .lock()
-        .map(|runtime| runtime.settings.clone())
-        .unwrap_or_default();
+    state.emit_status(app, StatusKind::Transcribing, None);
+    let settings = state.settings_snapshot().unwrap_or_default();
     *processing = true;
     let app = app.clone();
+    let app_for_finish = app.clone();
     tauri::async_runtime::spawn(async move {
         let correction_settings = settings.clone();
         process_transcription_result(
             &settings,
             transcription::transcribe(&settings.server_url, wav).await,
-            &app.state::<AppState>().processing,
+            move || app_for_finish.state::<AppState>().finish_processing(),
             move |text| async move { transcription::correct(&correction_settings, &text).await },
             output::copy_and_insert,
-            |event| emit_status_event(&app, event),
+            |event| app.state::<AppState>().emit_status_event(&app, event),
         )
         .await;
     });
@@ -358,7 +321,7 @@ fn stop_recording_locked(app: &AppHandle, processing: &mut bool) {
 async fn process_transcription_result<C, CFut, O, E>(
     settings: &crate::settings::Settings,
     result: Result<String, String>,
-    processing: &std::sync::Mutex<bool>,
+    finish: impl FnOnce(),
     correct: C,
     output_text: O,
     mut emit: E,
@@ -406,9 +369,35 @@ async fn process_transcription_result<C, CFut, O, E>(
         }
         Err(error) => publish(StatusKind::Error, Some(error), None, None),
     }
-    if let Ok(mut processing) = processing.lock() {
-        *processing = false;
-    }
+    finish();
+}
+
+/// Builds the callbacks a Wayland shortcut backend uses to reach the app.
+///
+/// Maps backend [`ShortcutEvent`]s onto [`HotkeyEvent`] handling and backend
+/// status onto the shared shortcut-status publication.
+#[cfg(target_os = "linux")]
+pub(crate) fn wayland_hooks(app: &AppHandle) -> (EventDispatch, StatusSink) {
+    let app_for_events = app.clone();
+    let dispatch: EventDispatch = std::sync::Arc::new(move |event: BackendShortcutEvent| {
+        let hotkey_event = match event {
+            BackendShortcutEvent::Pressed => HotkeyEvent::Pressed,
+            BackendShortcutEvent::Released => HotkeyEvent::Released,
+        };
+        handle_hotkey_action(&app_for_events, hotkey_event);
+    });
+    let app_for_status = app.clone();
+    // Reproduces the backend's raw publication exactly: no shutdown
+    // suppression, unlike `AppState::set_shortcut_status`.
+    let status_sink: StatusSink = std::sync::Arc::new(move |status| {
+        match app_for_status.try_state::<AppState>() {
+            Some(state) => state.publish_shortcut_status_raw(&app_for_status, status),
+            None => {
+                let _ = app_for_status.emit("charon://shortcut-status", status);
+            }
+        }
+    });
+    (dispatch, status_sink)
 }
 
 pub(crate) fn show_settings(app: &AppHandle) {
@@ -449,18 +438,24 @@ mod transcription_result_tests {
         let processing = std::sync::Mutex::new(true);
         let events = std::cell::RefCell::new(Vec::new());
         let output_text = std::cell::RefCell::new(String::new());
+        let events_ref = &events;
+        let processing_ref = &processing;
         block_on(process_transcription_result(
             config,
             result,
-            &processing,
+            || {
+                if let Ok(mut processing) = processing_ref.lock() {
+                    *processing = false;
+                }
+            },
             |_| std::future::ready(correction),
             |text| {
                 output_text.replace(text.to_owned());
                 output
             },
             |event| {
-                assert!(*processing.lock().unwrap());
-                events.borrow_mut().push(event);
+                assert!(*processing_ref.lock().unwrap());
+                events_ref.borrow_mut().push(event);
             },
         ));
         let processing = *processing.lock().unwrap();
@@ -480,16 +475,22 @@ mod transcription_result_tests {
             let output_called = std::cell::Cell::new(false);
             let processing = std::sync::Mutex::new(true);
             let events = std::cell::RefCell::new(Vec::new());
+            let events_ref = &events;
+            let processing_ref = &processing;
             block_on(process_transcription_result(
                 &settings(false),
                 result,
-                &processing,
+                || {
+                    if let Ok(mut processing) = processing_ref.lock() {
+                        *processing = false;
+                    }
+                },
                 |_| std::future::ready(Ok(String::new())),
                 |_| {
                     output_called.set(true);
                     Ok(true)
                 },
-                |event| events.borrow_mut().push(event),
+                |event| events_ref.borrow_mut().push(event),
             ));
             assert!(!output_called.get());
             assert!(!*processing.lock().unwrap());

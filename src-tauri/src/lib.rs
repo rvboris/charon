@@ -13,11 +13,13 @@
 //! The remaining siblings (`audio`, `output`, `settings`, `shortcut`,
 //! `transcription`, `trigger`) are subsystem implementations.
 
+mod exit;
 mod app;
 mod audio;
 mod commands;
 mod hotkey;
 mod output;
+mod overlay;
 mod permissions;
 mod settings;
 mod shortcut;
@@ -26,7 +28,6 @@ mod transcription;
 mod trigger;
 
 pub use app::run;
-pub use hotkey::{handle_hotkey_action, HotkeyEvent};
 pub use state::AppState;
 
 #[cfg(test)]

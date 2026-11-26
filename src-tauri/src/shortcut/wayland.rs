@@ -8,10 +8,10 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use tauri::{AppHandle, Emitter, Manager};
-
-use super::{BackendKind, ShortcutBackendStatus, ShortcutChord, ShortcutError};
-use crate::{handle_hotkey_action, HotkeyEvent};
+use super::{
+    BackendKind, EventDispatch, ShortcutBackendStatus, ShortcutChord, ShortcutError,
+    ShortcutEvent, StatusSink,
+};
 use charon_shortcut_core::protocol::{
     decode_helper_line, encode_parent_line, read_bounded_line, EventState, HelperMessage,
     ParentCommand, PROTOCOL_VERSION,
@@ -48,7 +48,7 @@ impl EventFilter {
         self.last_seq = 0;
     }
 
-    fn accept(&mut self, generation: u64, seq: u64, state: EventState) -> Option<HotkeyEvent> {
+    fn accept(&mut self, generation: u64, seq: u64, state: EventState) -> Option<ShortcutEvent> {
         if generation != self.generation || seq <= self.last_seq {
             return None;
         }
@@ -56,11 +56,11 @@ impl EventFilter {
         match state {
             EventState::Pressed if !self.pressed => {
                 self.pressed = true;
-                Some(HotkeyEvent::Pressed)
+                Some(ShortcutEvent::Pressed)
             }
             EventState::Released if self.pressed => {
                 self.pressed = false;
-                Some(HotkeyEvent::Released)
+                Some(ShortcutEvent::Released)
             }
             _ => None,
         }
@@ -76,7 +76,8 @@ pub struct WaylandSupervisor {
     input: ChildStdin,
     messages: Receiver<Result<HelperMessage, String>>,
     filter: Arc<Mutex<EventFilter>>,
-    app: AppHandle,
+    dispatch: EventDispatch,
+    status_sink: StatusSink,
     next_id: u64,
     generation: u64,
     active: Option<ShortcutChord>,
@@ -132,12 +133,14 @@ fn deliver_failure_before_status(
     publish_status();
 }
 
+#[allow(clippy::too_many_arguments)]
 fn spawn_protocol_reader(
     output: std::process::ChildStdout,
     sender: mpsc::Sender<Result<HelperMessage, String>>,
     filter: Arc<Mutex<EventFilter>>,
     status: Arc<Mutex<ShortcutBackendStatus>>,
-    app: AppHandle,
+    dispatch: EventDispatch,
+    status_sink: StatusSink,
     supervisor_generation: Arc<AtomicU64>,
     identity: u64,
 ) -> Result<(), ShortcutError> {
@@ -155,7 +158,7 @@ fn spawn_protocol_reader(
                         // depend on those locks.
                         deliver_failure_before_status(&sender, &detail, || {
                             set_shared_status_if_current(
-                                &app,
+                                &status_sink,
                                 &status,
                                 &supervisor_generation,
                                 identity,
@@ -165,7 +168,7 @@ fn spawn_protocol_reader(
                                 },
                             );
                         });
-                        synthesize_release(&app, &filter);
+                        synthesize_release(&dispatch, &filter);
                         break;
                     }
                     HelperRecord::Message(HelperMessage::Event {
@@ -178,14 +181,14 @@ fn spawn_protocol_reader(
                             .ok()
                             .and_then(|mut filter| filter.accept(generation, seq, state));
                         if let Some(event) = event {
-                            handle_hotkey_action(&app, event);
+                            dispatch(event);
                         }
                     }
                     HelperRecord::Message(message @ HelperMessage::Error { .. }) => {
                         let detail = format!("helper protocol error: {message:?}");
                         deliver_failure_before_status(&sender, &detail, || {
                             set_shared_status_if_current(
-                                &app,
+                                &status_sink,
                                 &status,
                                 &supervisor_generation,
                                 identity,
@@ -195,7 +198,7 @@ fn spawn_protocol_reader(
                                 },
                             );
                         });
-                        synthesize_release(&app, &filter);
+                        synthesize_release(&dispatch, &filter);
                         break;
                     }
                     HelperRecord::Message(message) => {
@@ -207,7 +210,7 @@ fn spawn_protocol_reader(
                         let detail = "helper emitted malformed protocol".to_owned();
                         deliver_failure_before_status(&sender, &detail, || {
                             set_shared_status_if_current(
-                                &app,
+                                &status_sink,
                                 &status,
                                 &supervisor_generation,
                                 identity,
@@ -217,7 +220,7 @@ fn spawn_protocol_reader(
                                 },
                             );
                         });
-                        synthesize_release(&app, &filter);
+                        synthesize_release(&dispatch, &filter);
                         break;
                     }
                 }
@@ -240,12 +243,13 @@ fn spawn_stderr_reader(stderr: std::process::ChildStderr) -> Result<(), Shortcut
 }
 
 impl WaylandSupervisor {
-    pub fn spawn(app: AppHandle) -> Result<Self, ShortcutError> {
-        Self::spawn_generation(app, Arc::new(AtomicU64::new(0)), 0)
+    pub fn spawn(dispatch: EventDispatch, status_sink: StatusSink) -> Result<Self, ShortcutError> {
+        Self::spawn_generation(dispatch, status_sink, Arc::new(AtomicU64::new(0)), 0)
     }
 
     fn spawn_generation(
-        app: AppHandle,
+        dispatch: EventDispatch,
+        status_sink: StatusSink,
         supervisor_generation: Arc<AtomicU64>,
         identity: u64,
     ) -> Result<Self, ShortcutError> {
@@ -262,7 +266,8 @@ impl WaylandSupervisor {
             sender,
             filter.clone(),
             status.clone(),
-            app.clone(),
+            dispatch.clone(),
+            status_sink.clone(),
             supervisor_generation.clone(),
             identity,
         )?;
@@ -273,7 +278,8 @@ impl WaylandSupervisor {
             input,
             messages,
             filter,
-            app,
+            dispatch,
+            status_sink,
             next_id: 1,
             generation: 0,
             active: None,
@@ -347,9 +353,12 @@ impl WaylandSupervisor {
             .identity
             .checked_add(1)
             .ok_or_else(|| ShortcutError::Backend("supervisor generation exhausted".to_owned()))?;
-        let app = self.app.clone();
-        let mut replacement =
-            Self::spawn_generation(app, self.supervisor_generation.clone(), identity)?;
+        let mut replacement = Self::spawn_generation(
+            self.dispatch.clone(),
+            self.status_sink.clone(),
+            self.supervisor_generation.clone(),
+            identity,
+        )?;
         // Transfer ownership before configuration can publish Active. From this
         // point onward the old reader cannot overwrite replacement status.
         self.supervisor_generation
@@ -387,7 +396,7 @@ impl WaylandSupervisor {
             release
         });
         if release {
-            handle_hotkey_action(&self.app, HotkeyEvent::Released);
+            (self.dispatch)(ShortcutEvent::Released);
         }
         if evdev_debug_enabled() {
             log_wayland(&format!("replace: sending configure gen={generation}"));
@@ -521,11 +530,11 @@ impl WaylandSupervisor {
     }
 
     fn set_status(&self, status: ShortcutBackendStatus) {
-        set_shared_status(&self.app, &self.status, status);
+        set_shared_status(&self.status_sink, &self.status, status);
     }
 
     fn synthesize_release(&self) {
-        synthesize_release(&self.app, &self.filter);
+        synthesize_release(&self.dispatch, &self.filter);
     }
 }
 
@@ -558,19 +567,19 @@ fn is_current_supervisor(generation: &AtomicU64, identity: u64) -> bool {
 }
 
 fn set_shared_status_if_current(
-    app: &AppHandle,
+    status_sink: &StatusSink,
     current: &Arc<Mutex<ShortcutBackendStatus>>,
     generation: &AtomicU64,
     identity: u64,
     status: ShortcutBackendStatus,
 ) {
     if is_current_supervisor(generation, identity) {
-        set_shared_status(app, current, status);
+        set_shared_status(status_sink, current, status);
     }
 }
 
 fn set_shared_status(
-    app: &AppHandle,
+    status_sink: &StatusSink,
     current: &Arc<Mutex<ShortcutBackendStatus>>,
     status: ShortcutBackendStatus,
 ) {
@@ -580,13 +589,7 @@ fn set_shared_status(
     if let Ok(mut value) = current.lock() {
         *value = status.clone();
     }
-    if let Some(state) = app.try_state::<crate::AppState>() {
-        if let Ok(mut shortcut) = state.shortcut.lock() {
-            shortcut.status = status.clone();
-            shortcut.status_revision = shortcut.status_revision.wrapping_add(1);
-        }
-    }
-    let _ = app.emit("charon://shortcut-status", status);
+    status_sink(status);
 }
 
 fn zero_device_status() -> ShortcutBackendStatus {
@@ -616,10 +619,10 @@ fn status_from_helper_error(code: &str) -> ShortcutBackendStatus {
     }
 }
 
-fn synthesize_release(app: &AppHandle, filter: &Arc<Mutex<EventFilter>>) {
+fn synthesize_release(dispatch: &EventDispatch, filter: &Arc<Mutex<EventFilter>>) {
     let release = filter.lock().is_ok_and(|mut state| state.release());
     if release {
-        handle_hotkey_action(app, HotkeyEvent::Released);
+        dispatch(ShortcutEvent::Released);
     }
 }
 
@@ -669,7 +672,7 @@ mod tests {
     #[derive(Default)]
     struct LifecycleHarness {
         filter: EventFilter,
-        dispatched: Vec<HotkeyEvent>,
+        dispatched: Vec<ShortcutEvent>,
         failed: bool,
         synthetic_releases: usize,
         reaped: bool,
@@ -705,7 +708,7 @@ mod tests {
         fn synthesize_release(&mut self) {
             if self.filter.release() {
                 self.synthetic_releases += 1;
-                self.dispatched.push(HotkeyEvent::Released);
+                self.dispatched.push(ShortcutEvent::Released);
             }
         }
 
@@ -773,7 +776,7 @@ mod tests {
         }
         assert_eq!(
             harness.dispatched,
-            [HotkeyEvent::Pressed, HotkeyEvent::Released]
+            [ShortcutEvent::Pressed, ShortcutEvent::Released]
         );
     }
 
@@ -811,7 +814,7 @@ mod tests {
         assert_eq!(harness.synthetic_releases, 1);
         assert_eq!(
             harness.dispatched,
-            [HotkeyEvent::Pressed, HotkeyEvent::Released]
+            [ShortcutEvent::Pressed, ShortcutEvent::Released]
         );
     }
 
@@ -848,9 +851,9 @@ mod tests {
         assert_eq!(
             harness.dispatched,
             [
-                HotkeyEvent::Pressed,
-                HotkeyEvent::Released,
-                HotkeyEvent::Pressed
+                ShortcutEvent::Pressed,
+                ShortcutEvent::Released,
+                ShortcutEvent::Pressed
             ]
         );
     }
@@ -894,13 +897,13 @@ mod tests {
         assert_eq!(filter.accept(3, 1, EventState::Pressed), None);
         assert_eq!(
             filter.accept(4, 2, EventState::Pressed),
-            Some(HotkeyEvent::Pressed)
+            Some(ShortcutEvent::Pressed)
         );
         assert_eq!(filter.accept(4, 2, EventState::Released), None);
         assert_eq!(filter.accept(4, 3, EventState::Pressed), None);
         assert_eq!(
             filter.accept(4, 4, EventState::Released),
-            Some(HotkeyEvent::Released)
+            Some(ShortcutEvent::Released)
         );
         assert_eq!(filter.accept(4, 5, EventState::Released), None);
     }
