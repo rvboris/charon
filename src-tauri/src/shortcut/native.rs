@@ -111,10 +111,9 @@ impl NativeShortcutBackend {
 
         if let Err(error) = unregister(old_shortcut) {
             let rollback = unregister(new_shortcut);
-            let rollback_note = rollback
-                .err()
-                .map(|rollback_error| format!("; rollback also failed: {rollback_error}"))
-                .unwrap_or_default();
+            let rollback_note = rollback.err().map_or_else(String::new, |rollback_error| {
+                format!("; rollback also failed: {rollback_error}")
+            });
             return Err(ShortcutError::Backend(format!(
                 "cannot replace previous shortcut {old_chord}: {error}{rollback_note}"
             )));

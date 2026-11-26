@@ -7,7 +7,6 @@
 
 use crate::output;
 use crate::settings::TriggerType;
-#[cfg(target_os = "linux")]
 use crate::shortcut::{EventDispatch, ShortcutEvent as BackendShortcutEvent, StatusSink};
 use crate::state::{AppState, StatusEvent, StatusKind};
 use crate::transcription;
@@ -375,7 +374,6 @@ async fn process_transcription_result<C, CFut, O, E>(
 ///
 /// Maps backend [`ShortcutEvent`]s onto [`HotkeyEvent`] handling and backend
 /// status onto the shared shortcut-status publication.
-#[cfg(target_os = "linux")]
 pub(crate) fn wayland_hooks(app: &AppHandle) -> (EventDispatch, StatusSink) {
     let app_for_events = app.clone();
     let dispatch: EventDispatch = std::sync::Arc::new(move |event: BackendShortcutEvent| {

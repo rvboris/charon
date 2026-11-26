@@ -132,8 +132,7 @@ fn harden_process() -> Result<(), String> {
 fn instance_id() -> String {
     let nonce = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_nanos())
-        .unwrap_or_default();
+        .map_or(0, |duration| duration.as_nanos());
     format!("{}-{nonce:x}", std::process::id())
 }
 

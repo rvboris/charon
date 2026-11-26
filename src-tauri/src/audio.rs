@@ -181,8 +181,7 @@ fn open_stream(
     // the configured setting may only approximate (or resolve to the default).
     let opened_name = device
         .name()
-        .map(|name| name.trim().to_owned())
-        .unwrap_or_default();
+        .map_or_else(|_| String::new(), |name| name.trim().to_owned());
     let supported = device
         .default_input_config()
         .map_err(|error| format!("cannot read microphone config: {error}"))?;
