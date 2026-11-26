@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0](https://github.com/rvboris/charon/compare/charon-v0.9.0...charon-v1.0.0) (2026-11-26)
+
+
+### ⚠ BREAKING CHANGES
+
+* deep modules, narrow interfaces (deslop-please clean)
+
+### Code Refactoring
+
+* deep modules, narrow interfaces (deslop-please clean) ([587871d](https://github.com/rvboris/charon/commit/587871d2ca581b6dcd1d0e2628f41632d00a538c))
+
 ## [0.9.0](https://github.com/rvboris/charon/compare/slovo-v0.8.0...charon-v0.9.0) (2026-10-14)
 
 
