@@ -16,7 +16,7 @@ unreachable_pub = "allow"
 
 [package]
 name = "charon-app"
-version = "1.0.0"
+version = "1.0.1"
 description = "Linux-first push-to-talk transcription"
 authors = ["Charon contributors"]
 edition = "2021"
